@@ -2542,7 +2542,48 @@
                         dp = new DPlayer({
                             container: document.getElementById('dplayer'),
                             theme: '#e50914',
-                            video: { url: proxyUrl, type: 'hls' }
+                            video: {
+                                url: proxyUrl,
+                                type: 'customHls',
+                                customType: {
+                                    customHls: function (video, player) {
+                                        const hls = new Hls({
+                                            // 激进的预加载策略
+                                            maxBufferLength: 30,        // 预加载 30 秒
+                                            maxMaxBufferLength: 60,     // 最大缓冲 60 秒
+                                            maxBufferSize: 60 * 1024 * 1024,  // 60MB 缓冲
+                                            maxBufferHole: 0.5,
+
+                                            // 降低延迟配置
+                                            liveSyncDurationCount: 3,
+                                            liveMaxLatencyDurationCount: 10,
+
+                                            // 启用分片预加载
+                                            startFragPrefetch: true,
+
+                                            // HTTP/1.1 优化（虽然受限于并发）
+                                            manifestLoadingMaxRetry: 3,
+                                            levelLoadingMaxRetry: 3,
+                                            fragLoadingMaxRetry: 3,
+
+                                            // 减少带宽测试开销
+                                            testBandwidth: false,
+
+                                            // debug: true  // 调试时可启用
+                                        });
+
+                                        hls.loadSource(video.src);
+                                        hls.attachMedia(video);
+
+                                        // 监听 HLS 错误
+                                        hls.on(Hls.Events.ERROR, function (event, data) {
+                                            if (data.fatal) {
+                                                console.error('[HLS Error]', data);
+                                            }
+                                        });
+                                    }
+                                }
+                            }
                         });
 
                         // 添加全屏横屏功能(手机端)

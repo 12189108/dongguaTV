@@ -6,6 +6,9 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const compression = require('compression');
+const http = require('http');
+const https = require('https');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -100,7 +103,23 @@ class CacheManager {
 
 const cacheManager = new CacheManager(CACHE_TYPE);
 
+// HTTP/1.1 连接池优化 (Keep-Alive + 增加并发连接数)
+const httpAgent = new http.Agent({
+    keepAlive: true,
+    keepAliveMsecs: 30000,
+    maxSockets: 50,
+    maxFreeSockets: 10
+});
+
+const httpsAgent = new https.Agent({
+    keepAlive: true,
+    keepAliveMsecs: 30000,
+    maxSockets: 50,
+    maxFreeSockets: 10
+});
+
 app.use(cors());
+app.use(compression());  // 启用 gzip 压缩
 app.use(bodyParser.json());
 app.use(express.static('public'));
 
@@ -430,6 +449,8 @@ app.get('/api/proxy/m3u8', async (req, res) => {
         const response = await axios.get(originalUrl, {
             responseType: 'text',
             timeout: 15000,
+            httpAgent,
+            httpsAgent,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
@@ -501,6 +522,8 @@ app.get('/api/proxy/ts', async (req, res) => {
             method: 'GET',
             responseType: 'stream',
             timeout: 15000,
+            httpAgent,
+            httpsAgent,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
@@ -539,6 +562,8 @@ app.get('/api/proxy/key', async (req, res) => {
             method: 'GET',
             responseType: 'stream',
             timeout: 10000,
+            httpAgent,
+            httpsAgent,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
