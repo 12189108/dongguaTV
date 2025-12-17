@@ -275,7 +275,7 @@ app.get('/api/detail', async (req, res) => {
     const cached = cacheManager.get('detail', cacheKey);
     if (cached) {
         console.log(`[Cache] Hit detail: ${cacheKey}`);
-        return res.json(cached);
+        return res.json({ list: [cached] });  // 包装为 list 数组
     }
 
     try {
@@ -289,7 +289,7 @@ app.get('/api/detail', async (req, res) => {
         if (data.list && data.list.length > 0) {
             const detail = data.list[0];
             cacheManager.set('detail', cacheKey, detail, 3600); // 缓存1小时
-            res.json(detail);
+            res.json({ list: [detail] });  // 包装为 list 数组
         } else {
             res.status(404).json({ error: 'Not found' });
         }
