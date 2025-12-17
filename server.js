@@ -258,8 +258,14 @@ app.get('/api/search', async (req, res) => {
 });
 
 // 3. 详情 API (带缓存)
-app.post('/api/detail', async (req, res) => {
-    const { id, siteKey } = req.body;
+app.get('/api/detail', async (req, res) => {
+    const id = req.query.id;
+    const siteKey = req.query.site_key;
+
+    if (!id || !siteKey) {
+        return res.status(400).json({ error: 'Missing id or site_key parameter' });
+    }
+
     const sites = getDB().sites;
     const site = sites.find(s => s.key === siteKey);
 
