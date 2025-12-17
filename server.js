@@ -6,20 +6,11 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const stream = require('stream');
-const { promisify } = require('util');
-const pipeline = promisify(stream.pipeline);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const DATA_FILE = path.join(__dirname, 'db.json');
 const TEMPLATE_FILE = path.join(__dirname, 'db.template.json');
-
-// 图片缓存目录
-const IMAGE_CACHE_DIR = path.join(__dirname, 'public/cache/images');
-if (!fs.existsSync(IMAGE_CACHE_DIR)) {
-    fs.mkdirSync(IMAGE_CACHE_DIR, { recursive: true });
-}
 
 // 访问密码配置
 const ACCESS_PASSWORD = process.env.ACCESS_PASSWORD || '';
@@ -126,6 +117,47 @@ app.get('/api/config', (req, res) => {
     });
 });
 
+// TMDB API 代理端点
+app.post('/api/tmdb', async (req, res) => {
+    const { path, params } = req.body;
+
+    if (!path) {
+        return res.status(400).json({ error: 'Missing path parameter' });
+    }
+
+    if (!process.env.TMDB_API_KEY) {
+        console.error('[TMDB Proxy] TMDB_API_KEY not configured');
+        return res.status(500).json({ error: 'TMDB API not configured' });
+    }
+
+    try {
+        // 构建完整的 TMDB URL
+        const baseUrl = process.env.TMDB_PROXY_URL
+            ? `${process.env.TMDB_PROXY_URL}/api/3`
+            : 'https://api.themoviedb.org/3';
+
+        const queryParams = new URLSearchParams({
+            api_key: process.env.TMDB_API_KEY,
+            ...params
+        });
+
+        const tmdbUrl = `${baseUrl}${path}?${queryParams}`;
+        console.log(`[TMDB Proxy] ${path}`);
+
+        const response = await axios.get(tmdbUrl, {
+            timeout: 10000
+        });
+
+        res.json(response.data);
+    } catch (error) {
+        console.error(`[TMDB Proxy Error] ${path}:`, error.message);
+        res.status(error.response?.status || 500).json({
+            error: 'TMDB API request failed',
+            message: error.message
+        });
+    }
+});
+
 // 1. 获取站点列表
 app.get('/api/sites', async (req, res) => {
     let sitesData = null;
@@ -158,47 +190,71 @@ app.get('/api/sites', async (req, res) => {
     res.json(sitesData);
 });
 
-// 2. 搜索 API (带缓存)
-app.post('/api/search', async (req, res) => {
-    const { keyword, siteKey } = req.body;
+// 2. 流式搜索 API (Server-Sent Events)
+app.get('/api/search', async (req, res) => {
+    const keyword = req.query.wd;
+    const stream = req.query.stream === 'true';
+
+    if (!keyword) {
+        return res.status(400).json({ error: 'Missing keyword parameter' });
+    }
+
+    if (!stream) {
+        return res.status(400).json({ error: 'Use POST method for non-stream search' });
+    }
+
+    // 设置 SSE 响应头
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    console.log(`[Stream Search] keyword: ${keyword}`);
+
     const sites = getDB().sites;
-    const site = sites.find(s => s.key === siteKey);
+    let completedCount = 0;
 
-    if (!site) return res.status(404).json({ error: 'Site not found' });
+    // 并发搜索所有站点
+    sites.map(async (site) => {
+        try {
+            const response = await axios.get(site.api, {
+                params: { ac: 'detail', wd: keyword },
+                timeout: 8000
+            });
 
-    const cacheKey = `${siteKey}_${keyword}`;
-    const cached = cacheManager.get('search', cacheKey);
-    if (cached) {
-        console.log(`[Cache] Hit search: ${cacheKey}`);
-        return res.json(cached);
-    }
+            const data = response.data;
+            if (data.list && data.list.length > 0) {
+                const cleanedList = data.list.map(item => ({
+                    vod_id: item.vod_id,
+                    vod_name: item.vod_name,
+                    vod_pic: item.vod_pic,
+                    vod_remarks: item.vod_remarks,
+                    vod_year: item.vod_year,
+                    vod_play_url: item.vod_play_url,
+                    vod_content: item.vod_content,
+                    type_name: item.type_name,
+                    site_key: site.key,
+                    site_name: site.name
+                }));
 
-    try {
-        console.log(`[Search] ${site.name} -> ${keyword}`);
-        const response = await axios.get(site.api, {
-            params: { ac: 'detail', wd: keyword },
-            timeout: 8000
-        });
+                res.write(`data: ${JSON.stringify(cleanedList)}\n\n`);
+                console.log(`[Stream Search] ${site.name}: found ${cleanedList.length} results`);
+            }
+        } catch (error) {
+            console.error(`[Stream Search Error] ${site.name}:`, error.message);
+        } finally {
+            completedCount++;
+            if (completedCount === sites.length) {
+                res.write('event: done\n');
+                res.write('data: {}\n\n');
+                res.end();
+            }
+        }
+    });
 
-        const data = response.data;
-        // 简单的数据清洗
-        const result = {
-            list: data.list ? data.list.map(item => ({
-                vod_id: item.vod_id,
-                vod_name: item.vod_name,
-                vod_pic: item.vod_pic,
-                vod_remarks: item.vod_remarks,
-                vod_year: item.vod_year,
-                type_name: item.type_name
-            })) : []
-        };
-
-        cacheManager.set('search', cacheKey, result, 600); // 缓存10分钟
-        res.json(result);
-    } catch (error) {
-        console.error(`[Search Error] ${site.name}:`, error.message);
-        res.status(500).json({ error: 'Search failed' });
-    }
+    req.on('close', () => {
+        console.log('[Stream Search] Client disconnected');
+    });
 });
 
 // 3. 详情 API (带缓存)
@@ -237,7 +293,154 @@ app.post('/api/detail', async (req, res) => {
     }
 });
 
-// 4. 图片代理与缓存 API (Server-Side Image Caching)
+// 4. M3U8 代理接口
+app.get('/api/proxy/m3u8', async (req, res) => {
+    const encodedUrl = req.query.url;
+
+    if (!encodedUrl) {
+        return res.status(400).send('Missing url parameter');
+    }
+
+    try {
+        // 解码 URL
+        const originalUrl = Buffer.from(encodedUrl, 'base64').toString('utf-8');
+        console.log(`[M3U8 Proxy] ${originalUrl}`);
+
+        // 获取 m3u8 文件
+        const response = await axios.get(originalUrl, {
+            responseType: 'text',
+            timeout: 15000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+        });
+
+        let content = response.data;
+        const baseUrl = originalUrl.substring(0, originalUrl.lastIndexOf('/') + 1);
+
+        // 重写 m3u8 内容中的 URL
+        content = content.split('\n').map(line => {
+            // 跳过注释和空行
+            if (line.startsWith('#')) {
+                // 处理 EXT-X-KEY (加密密钥)
+                if (line.startsWith('#EXT-X-KEY')) {
+                    return line.replace(/URI="([^"]+)"/g, (match, uri) => {
+                        // 将相对路径转为绝对路径
+                        const absoluteUri = uri.startsWith('http') ? uri : new URL(uri, baseUrl).href;
+                        // 使用 key 代理
+                        const proxyUri = `/api/proxy/key?url=${Buffer.from(absoluteUri).toString('base64')}`;
+                        return `URI="${proxyUri}"`;
+                    });
+                }
+                return line;
+            }
+
+            if (line.trim()) {
+                // 将相对 URL 转为绝对 URL
+                const absoluteUrl = line.startsWith('http') ? line : new URL(line.trim(), baseUrl).href;
+
+                // 根据文件类型选择代理端点
+                if (absoluteUrl.endsWith('.m3u8') || absoluteUrl.includes('.m3u8?')) {
+                    return `/api/proxy/m3u8?url=${Buffer.from(absoluteUrl).toString('base64')}`;
+                } else if (absoluteUrl.endsWith('.ts') || absoluteUrl.includes('.ts?')) {
+                    return `/api/proxy/ts?url=${Buffer.from(absoluteUrl).toString('base64')}`;
+                } else {
+                    // 其他资源也通过 ts 代理
+                    return `/api/proxy/ts?url=${Buffer.from(absoluteUrl).toString('base64')}`;
+                }
+            }
+
+            return line;
+        }).join('\n');
+
+        // 设置响应头
+        res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.send(content);
+
+    } catch (error) {
+        console.error(`[M3U8 Proxy Error]:`, error.message);
+        res.status(502).send('Failed to fetch m3u8');
+    }
+});
+
+// 5. TS 分片代理接口
+app.get('/api/proxy/ts', async (req, res) => {
+    const encodedUrl = req.query.url;
+
+    if (!encodedUrl) {
+        return res.status(400).send('Missing url parameter');
+    }
+
+    try {
+        const originalUrl = Buffer.from(encodedUrl, 'base64').toString('utf-8');
+        console.log(`[TS Proxy] ${originalUrl}`);
+
+        const response = await axios({
+            url: originalUrl,
+            method: 'GET',
+            responseType: 'stream',
+            timeout: 15000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+        });
+
+        // 设置响应头
+        res.setHeader('Content-Type', response.headers['content-type'] || 'video/mp2t');
+        if (response.headers['content-length']) {
+            res.setHeader('Content-Length', response.headers['content-length']);
+        }
+        res.setHeader('Access-Control-Allow-Origin', '*');
+
+        // 流式转发
+        response.data.pipe(res);
+
+    } catch (error) {
+        console.error(`[TS Proxy Error]:`, error.message);
+        res.status(502).send('Failed to fetch ts');
+    }
+});
+
+// 6. 加密密钥文件代理接口
+app.get('/api/proxy/key', async (req, res) => {
+    const encodedUrl = req.query.url;
+
+    if (!encodedUrl) {
+        return res.status(400).send('Missing url parameter');
+    }
+
+    try {
+        const originalUrl = Buffer.from(encodedUrl, 'base64').toString('utf-8');
+        console.log(`[KEY Proxy] ${originalUrl}`);
+
+        const response = await axios({
+            url: originalUrl,
+            method: 'GET',
+            responseType: 'stream',
+            timeout: 10000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+        });
+
+        // 设置响应头
+        res.setHeader('Content-Type', response.headers['content-type'] || 'application/octet-stream');
+        if (response.headers['content-length']) {
+            res.setHeader('Content-Length', response.headers['content-length']);
+        }
+        res.setHeader('Access-Control-Allow-Origin', '*');
+
+        // 流式转发密钥文件
+        response.data.pipe(res);
+
+    } catch (error) {
+        console.error(`[KEY Proxy Error]:`, error.message);
+        res.status(502).send('Failed to fetch key');
+    }
+});
+
+// 7. 图片代理 API (直接转发,不缓存)
 app.get('/api/tmdb-image/:size/:filename', async (req, res) => {
     const { size, filename } = req.params;
     const allowSizes = ['w300', 'w342', 'w500', 'w780', 'w1280', 'original'];
@@ -247,26 +450,10 @@ app.get('/api/tmdb-image/:size/:filename', async (req, res) => {
         return res.status(400).send('Invalid parameters');
     }
 
-    const localPath = path.join(IMAGE_CACHE_DIR, size, filename);
-    const localDir = path.dirname(localPath);
-
-    // 1. 如果本地存在且文件大小 > 0，更新访问时间并返回
-    if (fs.existsSync(localPath) && fs.statSync(localPath).size > 0) {
-        // 更新文件的访问时间 (atime) 和修改时间 (mtime)，用于 LRU 清理
-        const now = new Date();
-        fs.utimesSync(localPath, now, now);
-        return res.sendFile(localPath);
-    }
-
-    // 2. 下载并缓存
-    if (!fs.existsSync(localDir)) {
-        fs.mkdirSync(localDir, { recursive: true });
-    }
-
     const tmdbUrl = `https://image.tmdb.org/t/p/${size}/${filename}`;
 
     try {
-        console.log(`[Image Proxy] Fetching: ${tmdbUrl}`);
+        console.log(`[Image Proxy] Forwarding: ${tmdbUrl}`);
         const response = await axios({
             url: tmdbUrl,
             method: 'GET',
@@ -274,81 +461,22 @@ app.get('/api/tmdb-image/:size/:filename', async (req, res) => {
             timeout: 10000
         });
 
-        const writer = fs.createWriteStream(localPath);
+        // 设置响应头
+        res.setHeader('Content-Type', response.headers['content-type']);
+        if (response.headers['content-length']) {
+            res.setHeader('Content-Length', response.headers['content-length']);
+        }
 
-        // 使用 pipeline 处理流
-        await pipeline(response.data, writer);
+        // 启用浏览器缓存 (可选,建议保留以减少重复请求)
+        res.setHeader('Cache-Control', 'public, max-age=86400'); // 缓存1天
 
-        // 下载完成后，检查缓存总大小并清理
-        cleanCacheIfNeeded();
-
-        // 发送文件
-        res.sendFile(localPath);
+        // 流式转发图片数据
+        response.data.pipe(res);
     } catch (error) {
         console.error(`[Image Proxy Error] ${tmdbUrl}:`, error.message);
-        if (fs.existsSync(localPath)) fs.unlinkSync(localPath);
         res.status(404).send('Image not found');
     }
 });
-
-// ========== 缓存清理逻辑 ==========
-const MAX_CACHE_SIZE_MB = 1024; // 1GB 缓存上限
-const CLEAN_TRIGGER_THRESHOLD = 50; // 每添加50张新图检查一次 (减少IO压力)
-let newItemCount = 0;
-
-function cleanCacheIfNeeded() {
-    newItemCount++;
-    if (newItemCount < CLEAN_TRIGGER_THRESHOLD) return;
-    newItemCount = 0;
-
-    // 异步执行清理，不阻塞主线程
-    setTimeout(() => {
-        try {
-            let totalSize = 0;
-            let files = [];
-
-            // 递归遍历缓存目录
-            function traverseDir(dir) {
-                if (!fs.existsSync(dir)) return;
-                const items = fs.readdirSync(dir);
-                items.forEach(item => {
-                    const fullPath = path.join(dir, item);
-                    const stats = fs.statSync(fullPath);
-                    if (stats.isDirectory()) {
-                        traverseDir(fullPath);
-                    } else {
-                        totalSize += stats.size;
-                        files.push({ path: fullPath, size: stats.size, time: stats.mtime.getTime() });
-                    }
-                });
-            }
-
-            traverseDir(IMAGE_CACHE_DIR);
-
-            const maxBytes = MAX_CACHE_SIZE_MB * 1024 * 1024;
-            console.log(`[Cache Trim] Current size: ${(totalSize / 1024 / 1024).toFixed(2)} MB`);
-
-            if (totalSize > maxBytes) {
-                // 按时间排序，最旧的在前
-                files.sort((a, b) => a.time - b.time);
-
-                let deletedSize = 0;
-                let targetDelete = totalSize - (maxBytes * 0.9); // 清理到 90%
-
-                for (const file of files) {
-                    if (deletedSize >= targetDelete) break;
-                    try {
-                        fs.unlinkSync(file.path);
-                        deletedSize += file.size;
-                    } catch (e) { console.error('Delete failed:', e); }
-                }
-                console.log(`[Cache Trim] Cleaned ${(deletedSize / 1024 / 1024).toFixed(2)} MB`);
-            }
-        } catch (err) {
-            console.error('[Cache Trim Error]', err);
-        }
-    }, 100);
-}
 
 // 5. 认证检查 API
 app.get('/api/auth/check', (req, res) => {
@@ -378,5 +506,4 @@ function getDB() {
 
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
-    console.log(`Image Cache Directory: ${IMAGE_CACHE_DIR}`);
 });

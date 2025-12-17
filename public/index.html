@@ -1898,12 +1898,8 @@
 
     <script>
         const { createApp, reactive } = Vue;
-        // TMDb API 配置 (从服务端获取)
-        let TMDB_API_KEY = "";
 
-        // TMDb URL 配置 (使用本地服务器缓存反代)
-        let TMDB_BASE_URL = "https://api.themoviedb.org/3";
-        // 使用本地 API 缓存图片
+        // TMDb 图片 URL 配置 (使用本地服务器缓存反代)
         let TMDB_IMG_URL = "/api/tmdb-image/w342";
         let TMDB_BACKDROP_URL = "/api/tmdb-image/original";
 
@@ -2046,7 +2042,6 @@
                     try {
                         const res = await fetch('/api/config');
                         const config = await res.json();
-                        TMDB_API_KEY = config.tmdb_api_key;
 
                         // Vercel 兼容性检测
                         if (config.enable_local_image_cache === false) {
@@ -2055,22 +2050,13 @@
                             this.TMDB_IMG_URL = "https://image.tmdb.org/t/p/w342";
                             this.TMDB_BACKDROP_URL = "https://image.tmdb.org/t/p/original";
                         }
-
-                        // 如果配置了反代地址，进行 IP 检测并切换
-                        if (config.tmdb_proxy_url) {
-                            await this.setupTmdbProxy(config.tmdb_proxy_url);
-                        }
                     } catch (e) {
                         console.error('Config Load Error:', e);
                     }
 
-                    // 2. 如果获取到了 Key，加载数据
-                    if (TMDB_API_KEY) {
-                        await this.fetchHero();
-                        this.fetchAllLists();
-                    } else {
-                        console.warn('TMDB_API_KEY 未配置');
-                    }
+                    // 2. 加载数据
+                    await this.fetchHero();
+                    this.fetchAllLists();
 
                     // 3. 移除 Loading 遮罩 (平滑过渡)
                     setTimeout(() => {
@@ -2198,45 +2184,6 @@
                     this.showInfoModal = true;
                 },
 
-                // 设置 TMDB 反代（针对大陆用户）
-                async setupTmdbProxy(proxyUrl) {
-                    let isCN = false;
-                    try {
-                        // 1. 优先使用 Cloudflare Trace (稳定、无速率限制)
-                        const res = await fetch('https://www.cloudflare.com/cdn-cgi/trace', { timeout: 3000 });
-                        if (res.ok) {
-                            const text = await res.text();
-                            const matches = text.match(/loc=([A-Z]+)/);
-                            if (matches && matches[1] === 'CN') isCN = true;
-                        } else {
-                            throw new Error('CF Trace Status: ' + res.status);
-                        }
-                    } catch (e) {
-                        // 2. 降级到 ipapi.co (有速率限制，仅作为备选)
-                        console.log('[IP检测] CF Trace 失败，尝试 ipapi.co...');
-                        try {
-                            const res = await fetch('https://ipapi.co/json/', { timeout: 3000 });
-                            if (res.ok) {
-                                const data = await res.json();
-                                if (data.country_code === 'CN') isCN = true;
-                            } else {
-                                console.warn('[IP检测] ipapi.co 响应异常:', res.status);
-                            }
-                        } catch (e2) {
-                            console.warn('[IP检测] 所有接口均失败，无法自动切换线路', e2);
-                        }
-                    }
-
-                    if (isCN) {
-                        console.log('[IP检测] 检测到大陆IP，启用TMDB反代:', proxyUrl);
-                        TMDB_BASE_URL = proxyUrl + '/api/3';
-                        TMDB_IMG_URL = proxyUrl + '/t/p/w342';
-                        TMDB_BACKDROP_URL = proxyUrl + '/t/p/original';
-                    } else {
-                        console.log('[IP检测] 非大陆IP或检测完成，保持官方地址');
-                    }
-                },
-
                 // 清理 HTML 标签
                 stripHtml(html) {
                     if (!html) return '';
@@ -2281,8 +2228,19 @@
                         config.page++;
                     }
 
-                    const url = `${TMDB_BASE_URL}${config.path}?api_key=${TMDB_API_KEY}&language=zh-CN&page=${config.page}&${config.params}`;
-                    fetch(url)
+                    // 使用后端代理
+                    fetch('/api/tmdb', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            path: config.path,
+                            params: {
+                                language: 'zh-CN',
+                                page: config.page,
+                                ...Object.fromEntries(new URLSearchParams(config.params))
+                            }
+                        })
+                    })
                         .then(res => res.json())
                         .then(data => {
                             if (data.results) {
@@ -2367,7 +2325,15 @@
                 },
 
                 fetchHero() {
-                    return fetch(`${TMDB_BASE_URL}/trending/all/week?api_key=${TMDB_API_KEY}&language=zh-CN`)
+                    // 使用后端代理
+                    return fetch('/api/tmdb', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            path: '/trending/all/week',
+                            params: { language: 'zh-CN' }
+                        })
+                    })
                         .then(res => res.json())
                         .then(data => {
                             if (data.results) {
@@ -2391,7 +2357,18 @@
                     if (this.imageMap[name] || this.fallbackMap[name]) return;
                     this.fallbackMap[name] = true;
                     let cleanName = name.replace(/第[0-9一二三四五六七八九十]+[季部]/g, '').replace(/Season\s*\d+/ig, '').replace(/S\d{1,2}/ig, '').replace(/(HD|BD|1080P|720P|4K|202\d|TC|TS).*/i, '').trim();
-                    fetch(`${TMDB_BASE_URL}/search/multi?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(cleanName)}&language=zh-CN`)
+                    // 使用后端代理
+                    fetch('/api/tmdb', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            path: '/search/multi',
+                            params: {
+                                query: cleanName,
+                                language: 'zh-CN'
+                            }
+                        })
+                    })
                         .then(res => res.json()).then(data => {
                             if (data.results && data.results.length > 0) {
                                 const found = data.results.find(i => i.poster_path) || data.results[0];
@@ -2703,8 +2680,11 @@
                     this.currentUrl = url;
                     this.playbackErrorCount = 0;  // 重置错误计数
 
+                    // 将原始 URL 包装为代理 URL
+                    const proxyUrl = `/api/proxy/m3u8?url=${btoa(url)}`;
+
                     const setupErrorHandling = () => {
-                        // 监听播放错误，自动切换到下一个可用线路
+                        // 监听播放错误,自动切换到下一个可用线路
                         dp.on('error', () => {
                             this.handlePlaybackError();
                         });
@@ -2721,10 +2701,10 @@
                         dp = new DPlayer({
                             container: document.getElementById('dplayer'),
                             theme: '#e50914',
-                            video: { url: url, type: 'hls' }
+                            video: { url: proxyUrl, type: 'hls' }
                         });
 
-                        // 添加全屏横屏功能（手机端）
+                        // 添加全屏横屏功能(手机端)
                         dp.on('fullscreen', () => {
                             if (screen.orientation && screen.orientation.lock) {
                                 screen.orientation.lock('landscape').catch(() => { });
@@ -2739,7 +2719,7 @@
 
                         setupErrorHandling();
                     } else {
-                        dp.switchVideo({ url: url, type: 'hls' });
+                        dp.switchVideo({ url: proxyUrl, type: 'hls' });
                     }
                     dp.play();
                 },
