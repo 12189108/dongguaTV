@@ -2436,12 +2436,38 @@
                     this.showDetail = true;
                     this.currentSource = null;
                     this.episodeList = [];
+                    this.isTestingSources = true;  // 显示测速中状态
 
-                    // 由于已实现 m3u8 全反代,不再需要客户端测速
-                    // 直接选择第一个可用线路
-                    if (this.currentGroup.sources && this.currentGroup.sources.length > 0) {
-                        console.log(`[自动选择] 选择第一个线路: ${this.currentGroup.sources[0].site_name}`);
-                        await this.switchSource(this.currentGroup.sources[0]);
+                    try {
+                        // 调用服务器端测试接口
+                        console.log(`[Server Test] 开始服务器端测速...`);
+                        const res = await fetch('/api/test-sources', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ sources: this.currentGroup.sources })
+                        });
+
+                        const data = await res.json();
+
+                        if (data.sources && data.sources.length > 0) {
+                            // 用测试后的源替换原始源列表
+                            this.currentGroup.sources = data.sources;
+
+                            console.log(`[Server Test] 完成: ${data.available}/${data.total} 个源可用`);
+
+                            // 自动选择第一个(延迟最低的)可用源
+                            await this.switchSource(data.sources[0]);
+                        } else {
+                            console.warn(`[Server Test] 所有源均不可用`);
+                        }
+                    } catch (error) {
+                        console.error(`[Server Test] 测速失败:`, error);
+                        // 降级:直接使用第一个源
+                        if (this.currentGroup.sources && this.currentGroup.sources.length > 0) {
+                            await this.switchSource(this.currentGroup.sources[0]);
+                        }
+                    } finally {
+                        this.isTestingSources = false;
                     }
                 },
                 closeDetail() { this.showDetail = false; if (dp) dp.pause(); },
