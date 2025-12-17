@@ -103,19 +103,19 @@ class CacheManager {
 
 const cacheManager = new CacheManager(CACHE_TYPE);
 
-// HTTP/1.1 连接池优化 (Keep-Alive + 增加并发连接数)
+// HTTP/1.1 连接池优化 (激进配置：200 并发)
 const httpAgent = new http.Agent({
     keepAlive: true,
     keepAliveMsecs: 30000,
-    maxSockets: 50,
-    maxFreeSockets: 10
+    maxSockets: 200,       // 200 并发连接
+    maxFreeSockets: 20
 });
 
 const httpsAgent = new https.Agent({
     keepAlive: true,
     keepAliveMsecs: 30000,
-    maxSockets: 50,
-    maxFreeSockets: 10
+    maxSockets: 200,       // 200 并发连接
+    maxFreeSockets: 20
 });
 
 app.use(cors());
@@ -650,5 +650,7 @@ function getDB() {
 }
 
 app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`✅ 服务器运行在 http://localhost:${PORT}`);
+    console.log(`📌 提示：生产环境建议使用 Nginx 反向代理启用 HTTP/2`);
+    console.log(`   参考: nginx.conf.example`);
 });
