@@ -309,90 +309,108 @@ app.post('/api/test-sources', async (req, res) => {
 
     console.log(`[Test Sources] 开始测试 ${sources.length} 个源...`);
 
-    // 并发测试所有源
-    const testResults = await Promise.all(sources.map(async (source) => {
-        try {
-            const startTime = Date.now();
+    // 设置整体超时保护 (15秒)
+    const overallTimeout = setTimeout(() => {
+        console.warn('[Test Sources] 整体超时,返回已完成的结果');
+    }, 15000);
 
-            // 1. 获取详情
-            const sites = getDB().sites;
-            const site = sites.find(s => s.key === source.site_key);
+    try {
+        // 并发测试所有源
+        const testResults = await Promise.all(sources.map(async (source) => {
+            try {
+                const startTime = Date.now();
 
-            if (!site) {
-                return { ...source, available: false, latency: 9999, error: 'Site not found' };
-            }
+                // 1. 获取详情
+                const sites = getDB().sites;
+                const site = sites.find(s => s.key === source.site_key);
 
-            const detailRes = await axios.get(site.api, {
-                params: { ac: 'detail', ids: source.vod_id },
-                timeout: 5000
-            });
+                if (!site) {
+                    return { ...source, available: false, latency: 9999, error: 'Site not found' };
+                }
 
-            if (!detailRes.data.list || detailRes.data.list.length === 0) {
-                return { ...source, available: false, latency: 9999, error: 'No detail' };
-            }
+                const detailRes = await axios.get(site.api, {
+                    params: { ac: 'detail', ids: source.vod_id },
+                    timeout: 3000  // 降低超时时间
+                });
 
-            const detail = detailRes.data.list[0];
-            let playUrl = detail.vod_play_url || '';
+                if (!detailRes.data.list || detailRes.data.list.length === 0) {
+                    return { ...source, available: false, latency: 9999, error: 'No detail' };
+                }
 
-            // 2. 解析第一个视频 URL
-            if (playUrl.includes('$$$')) {
-                const sets = playUrl.split('$$$');
-                playUrl = sets.find(s => s.toLowerCase().includes('m3u8')) || sets[0];
-            }
+                const detail = detailRes.data.list[0];
+                let playUrl = detail.vod_play_url || '';
 
-            const firstEp = playUrl.split('#')[0];
-            const parts = firstEp.split('$');
-            const videoUrl = parts.length > 1 ? parts[1] : parts[0];
+                // 2. 解析第一个视频 URL
+                if (playUrl.includes('$$$')) {
+                    const sets = playUrl.split('$$$');
+                    playUrl = sets.find(s => s.toLowerCase().includes('m3u8')) || sets[0];
+                }
 
-            if (!videoUrl || !videoUrl.startsWith('http')) {
-                return { ...source, available: false, latency: 9999, error: 'Invalid URL' };
-            }
+                const firstEp = playUrl.split('#')[0];
+                const parts = firstEp.split('$');
+                const videoUrl = parts.length > 1 ? parts[1] : parts[0];
 
-            // 3. 测试 m3u8 URL 可用性
-            const testRes = await axios.head(videoUrl, {
-                timeout: 5000,
-                validateStatus: (status) => status < 500 // 接受所有 < 500 的状态码用于判断
-            });
+                if (!videoUrl || !videoUrl.startsWith('http')) {
+                    return { ...source, available: false, latency: 9999, error: 'Invalid URL' };
+                }
 
-            const latency = Date.now() - startTime;
+                // 3. 测试 m3u8 URL 可用性 (使用 GET 请求前几个字节)
+                const testRes = await axios.get(videoUrl, {
+                    timeout: 3000,
+                    maxContentLength: 1024,  // 只下载前 1KB
+                    validateStatus: (status) => status < 500,
+                    headers: {
+                        'Range': 'bytes=0-1023'  // 请求前 1KB
+                    }
+                });
 
-            // 4. 检查状态码
-            if (testRes.status === 403 || testRes.status === 404) {
-                console.log(`[Test] ${source.site_name} - 不可用 (${testRes.status})`);
+                const latency = Date.now() - startTime;
+
+                // 4. 检查状态码
+                if (testRes.status === 403 || testRes.status === 404) {
+                    console.log(`[Test] ${source.site_name} - 不可用 (${testRes.status})`);
+                    return { ...source, available: false, latency: 9999, error: `HTTP ${testRes.status}` };
+                }
+
+                if (testRes.status >= 200 && testRes.status < 400) {
+                    console.log(`[Test] ${source.site_name} - 可用 (${latency}ms)`);
+                    return {
+                        ...source,
+                        available: true,
+                        latency,
+                        _cachedDetail: detail  // 修正字段名
+                    };
+                }
+
                 return { ...source, available: false, latency: 9999, error: `HTTP ${testRes.status}` };
+
+            } catch (error) {
+                console.log(`[Test] ${source.site_name} - 失败: ${error.message}`);
+                return { ...source, available: false, latency: 9999, error: error.message };
             }
+        }));
 
-            if (testRes.status >= 200 && testRes.status < 400) {
-                console.log(`[Test] ${source.site_name} - 可用 (${latency}ms)`);
-                return {
-                    ...source,
-                    available: true,
-                    latency,
-                    detail  // 缓存详情数据
-                };
-            }
+        clearTimeout(overallTimeout);
 
-            return { ...source, available: false, latency: 9999, error: `HTTP ${testRes.status}` };
+        // 5. 过滤掉不可用的源
+        const availableSources = testResults.filter(s => s.available);
 
-        } catch (error) {
-            console.log(`[Test] ${source.site_name} - 失败: ${error.message}`);
-            return { ...source, available: false, latency: 9999, error: error.message };
-        }
-    }));
+        // 6. 按延迟排序
+        availableSources.sort((a, b) => a.latency - b.latency);
 
-    // 5. 过滤掉不可用的源
-    const availableSources = testResults.filter(s => s.available);
+        console.log(`[Test Sources] 完成: ${availableSources.length}/${sources.length} 个源可用`);
 
-    // 6. 按延迟排序
-    availableSources.sort((a, b) => a.latency - b.latency);
+        res.json({
+            total: sources.length,
+            available: availableSources.length,
+            sources: availableSources
+        });
 
-    console.log(`[Test Sources] 完成: ${availableSources.length}/${sources.length} 个源可用`);
-
-    res.json({
-        total: sources.length,
-        available: availableSources.length,
-        sources: availableSources
-    });
+    } catch (error) {
+        clearTimeout(overallTimeout);
+        console.error('[Test Sources] 整体错误:', error);
+        res.status(500).json({ error: 'Test failed', message: error.message });
+    }
 });
 
 // 4. M3U8 代理接口
