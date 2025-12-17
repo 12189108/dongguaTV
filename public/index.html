@@ -2441,10 +2441,18 @@
                     try {
                         // 调用服务器端测试接口
                         console.log(`[Server Test] 开始服务器端测速...`);
+
+                        // 精简数据：只传递后端需要的三个字段
+                        const slimSources = this.currentGroup.sources.map(source => ({
+                            site_key: source.site_key,
+                            site_name: source.site_name,
+                            vod_id: source.vod_id
+                        }));
+
                         const res = await fetch('/api/test-sources', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ sources: this.currentGroup.sources })
+                            body: JSON.stringify({ sources: slimSources })
                         });
 
                         const data = await res.json();
