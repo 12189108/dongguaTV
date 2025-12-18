@@ -595,8 +595,25 @@
                     this.currentUrl = url;
                     this.playbackErrorCount = 0;
 
+                    // 修复btoa对中文等非Latin1字符的编码问题
+                    // 使用安全的base64编码方法
+                    const safeBase64Encode = (str) => {
+                        try {
+                            // 先用encodeURIComponent转义，再用btoa编码
+                            return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) => {
+                                return String.fromCharCode('0x' + p1);
+                            }));
+                        } catch (e) {
+                            console.error('[Encode Error]', e);
+                            // 降级：直接使用encodeURIComponent
+                            return encodeURIComponent(str);
+                        }
+                    };
+
                     // 使用代理URL
-                    const proxyUrl = `/api/proxy/m3u8?url=${btoa(url)}`;
+                    const proxyUrl = `/api/proxy/m3u8?url=${safeBase64Encode(url)}`;
+                    console.log('[Play] 原始URL:', url);
+                    console.log('[Play] 代理URL:', proxyUrl);
 
                     const setupErrorHandling = () => {
                         dp.on('error', () => {
@@ -706,19 +723,30 @@
                         setupErrorHandling();
                     } else {
                         // 切换视频时，优先使用Shaka Player的load方法
-                        console.log('[Play] 切换视频:', proxyUrl);
+                        const safeBase64Encode = (str) => {
+                            try {
+                                return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) => {
+                                    return String.fromCharCode('0x' + p1);
+                                }));
+                            } catch (e) {
+                                return encodeURIComponent(str);
+                            }
+                        };
+                        const switchProxyUrl = `/api/proxy/m3u8?url=${safeBase64Encode(url)}`;
+
+                        console.log('[Play] 切换视频:', switchProxyUrl);
                         if (window.shakaPlayerInstance && dp.video) {
-                            window.shakaPlayerInstance.load(proxyUrl).then(() => {
+                            window.shakaPlayerInstance.load(switchProxyUrl).then(() => {
                                 console.log('[Shaka Player] 切换成功，开始播放');
                                 dp.video.play().catch(e => console.warn('[Play] 播放被阻止:', e));
                             }).catch(e => {
                                 console.error('[Shaka Player] 切换失败:', e);
                                 // 降级到DPlayer的switchVideo
-                                dp.switchVideo({ url: proxyUrl, type: 'hls' });
+                                dp.switchVideo({ url: switchProxyUrl, type: 'hls' });
                                 dp.play();
                             });
                         } else {
-                            dp.switchVideo({ url: proxyUrl, type: 'hls' });
+                            dp.switchVideo({ url: switchProxyUrl, type: 'hls' });
                             dp.play();
                         }
                     }
