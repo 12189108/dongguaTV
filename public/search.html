@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="referrer" content="no-referrer">
+    <title>搜索结果 - E视界</title>
+
+    <!-- PWA Setup -->
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="icon.png" type="image/png">
+    <meta name="theme-color" content="#141414">
+
+    <link href="https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/twitter-bootstrap/5.1.3/css/bootstrap.min.css"
+        rel="stylesheet">
+    <link href="https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/animate.css/4.1.1/animate.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <script src="https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/vue/3.5.15/vue.global.prod.min.js"></script>
+    <script src="https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/bootstrap/5.1.3/js/bootstrap.bundle.min.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #141414;
+            --panel-bg: #1f1f1f;
+            --accent: #e50914;
+            --text-main: #ffffff;
+            --text-sub: #b3b3b3;
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        [v-cloak] {
+            display: none !important;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            min-height: 100vh;
+            padding-bottom: 60px;
+            overflow-x: hidden;
+        }
+
+        /* 全局滚动条 */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #141414;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        /* 导航 */
+        .navbar-custom {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            z-index: 1000;
+            padding: 15px 4%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #141414;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+        }
+
+        .brand {
+            font-size: 26px;
+            font-weight: 800;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+            cursor: pointer;
+        }
+
+        /* 搜索框 */
+        .search-section {
+            margin-top: 80px;
+            padding: 0 4%;
+            margin-bottom: 30px;
+        }
+
+        .search-box-wrapper {
+            background: rgba(20, 20, 20, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(20px);
+            border-radius: 50px;
+            display: flex;
+            align-items: center;
+            transition: 0.3s;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            max-width: none;
+            margin: 0 auto;
+        }
+
+        .search-box-wrapper:focus-within {
+            border-color: var(--accent);
+            background: #000;
+        }
+
+        .search-icon {
+            padding: 0 20px;
+            color: #888;
+            font-size: 18px;
+            cursor: pointer;
+        }
+
+        .search-input {
+            width: 100%;
+            height: 60px;
+            background: transparent;
+            border: none;
+            color: #fff;
+            font-size: 18px;
+            outline: none;
+        }
+
+        /* 列表通用 */
+        .section-container {
+            padding: 0 5%;
+            margin-bottom: 40px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .section-line {
+            width: 4px;
+            height: 22px;
+            background: var(--accent);
+            border-radius: 2px;
+            margin-right: 12px;
+        }
+
+        .section-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #fff;
+            margin: 0;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .result-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 20px;
+            min-height: 300px;
+        }
+
+        .result-card {
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .result-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .poster-wrap {
+            width: 100%;
+            aspect-ratio: 2/3;
+            border-radius: 6px;
+            overflow: hidden;
+            background: #222;
+            position: relative;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border);
+        }
+
+        .poster-wrap img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: opacity 0.5s;
+        }
+
+        .poster-fallback {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(135deg, #333 0%, #111 100%);
+            padding: 5px;
+            text-align: center;
+        }
+
+        .rating-badge {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            background: var(--accent);
+            color: #fff;
+            font-weight: bold;
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            border: none;
+        }
+
+        .movie-name {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #eee;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            text-align: center;
+            font-weight: 500;
+        }
+
+        .footer {
+            text-align: center;
+            font-size: 12px;
+            color: #444;
+            margin-top: 80px;
+            padding-bottom: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app" v-cloak>
+        <nav class="navbar-custom">
+            <div class="brand" @click="goHome">E视界 <span
+                    style="font-size:12px; color:#666; font-weight:normal;">MAX</span></div>
+        </nav>
+
+        <!-- 搜索框 -->
+        <div class="search-section">
+            <div class="search-box-wrapper">
+                <i class="fas fa-search search-icon" @click="doSearch"></i>
+                <input type="text" v-model="keyword" @keyup.enter="doSearch" @input="debouncedSearch"
+                    class="search-input" placeholder="输入片名或剧集名称...">
+            </div>
+        </div>
+
+        <!-- 搜索结果 -->
+        <div id="search-result-anchor" class="section-container">
+            <div class="d-flex align-items-center gap-2 mb-5 mt-2">
+                <button class="btn btn-outline-secondary rounded-pill px-3 px-md-4 py-2" @click="goHome"
+                    style="color: #fff; border-color: rgba(255,255,255,0.3);">
+                    <i class="fas fa-arrow-left me-0 me-md-2"></i><span class="d-none d-md-inline">返回首页</span>
+                </button>
+                <div class="section-header mb-0 ms-3 ms-md-4">
+                    <div class="section-line"></div>
+                    <div class="section-title">正在搜索: "{{ keyword }}"</div>
+                </div>
+            </div>
+
+            <!-- 搜索结果网格 -->
+            <div class="result-grid" v-if="groupedList.length > 0">
+                <div class="result-card" v-for="group in groupedList" :key="group.name" @click="openDetail(group)">
+                    <div class="poster-wrap">
+                        <img v-if="!isFallback(group.name)" :src="finalPoster(group)" :key="finalPoster(group)"
+                            referrerpolicy="no-referrer" @error="handleImgError(group.name)" loading="lazy">
+                        <div v-else class="poster-fallback">
+                            <i class="fas fa-film mb-2 opacity-50"></i>
+                            <div style="font-size:12px; color:#999">{{ group.name }}</div>
+                        </div>
+                        <div class="rating-badge">
+                            {{ group.sources.length }} 源
+                        </div>
+                    </div>
+                    <div class="movie-name">{{ group.name }}</div>
+                </div>
+            </div>
+
+            <!-- 加载中提示 -->
+            <div v-if="loading" class="text-center py-4">
+                <div class="spinner-border text-danger" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <div class="mt-2 text-muted small" v-if="groupedList.length > 0">正在搜索更多资源...</div>
+                <div class="mt-2 text-muted small" v-else>正在全网搜索...</div>
+            </div>
+
+            <!-- 无结果提示 -->
+            <div v-if="!loading && groupedList.length === 0" class="text-center"
+                style="padding: 60px 20px; margin-top: -20px;">
+                <i class="fas fa-search" style="font-size: 48px; color: #444; margin-bottom: 20px;"></i>
+                <h4 style="color: #888; margin-bottom: 15px;">暂未找到「{{ keyword }}」的相关资源</h4>
+                <div style="color: #666; font-size: 14px; line-height: 1.8; max-width: 400px; margin: 0 auto;">
+                    <p style="margin-bottom: 8px;">📌 新上映的电影/剧集可能需要等待1-2周才有资源</p>
+                    <p style="margin-bottom: 8px;">💡 尝试搜索电影的中文名</p>
+                    <p>🔍 或尝试搜索其他热门影片</p>
+                </div>
+                <button class="btn btn-outline-danger mt-4" @click="goHome"
+                    style="border-radius: 20px; padding: 8px 25px;">
+                    <i class="fas fa-home"></i> 返回首页
+                </button>
+            </div>
+        </div>
+
+        <div class="footer">
+            <div style="font-size:10px; margin-top:5px; opacity:0.5;">Data provided by TMDb & Maccms APIs</div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        // TMDb 图片 URL 配置
+        let TMDB_IMG_URL = "/api/tmdb-image/w342";
+
+        createApp({
+            data() {
+                return {
+                    searchTimer: null,
+                    keyword: '',
+                    loading: false,
+                    rawList: [],
+                    imageMap: {},
+                    fallbackMap: {},
+                    TMDB_IMG_URL: TMDB_IMG_URL,
+                    _evtSource: null
+                }
+            },
+            async mounted() {
+                // 从URL参数读取keyword
+                const urlParams = new URLSearchParams(window.location.search);
+                const keyword = urlParams.get('keyword');
+                if (keyword) {
+                    this.keyword = keyword;
+                    this.doSearch();
+                }
+
+                // 获取配置
+                try {
+                    const res = await fetch('/api/config');
+                    const config = await res.json();
+                    if (config.enable_local_image_cache === false) {
+                        this.TMDB_IMG_URL = "https://image.tmdb.org/t/p/w342";
+                    }
+                } catch (e) {
+                    console.error('Config Load Error:', e);
+                }
+            },
+            computed: {
+                groupedList() {
+                    const groups = {};
+                    this.rawList.forEach(item => {
+                        const name = item.vod_name;
+                        if (!groups[name]) groups[name] = { name: name, pic: item.vod_pic, sources: [] };
+                        const isDefault = (url) => !url || url.includes('mac_default') || url.includes('nopic');
+                        if (isDefault(groups[name].pic) && !isDefault(item.vod_pic)) groups[name].pic = item.vod_pic;
+                        if (isDefault(groups[name].pic)) this.handleImgError(name);
+
+                        groups[name].sources.push({
+                            ...item,
+                            latency: item.latency || 999
+                        });
+                    });
+                    return Object.values(groups).sort((a, b) => b.sources.length - a.sources.length);
+                }
+            },
+            methods: {
+                goHome() {
+                    window.location.href = 'index.html';
+                },
+
+                // 防抖搜索
+                debouncedSearch() {
+                    clearTimeout(this.searchTimer);
+                    if (!this.keyword || this.keyword.length < 2) {
+                        if (!this.keyword) {
+                            this.rawList = [];
+                        }
+                        return;
+                    }
+                    this.searchTimer = setTimeout(() => {
+                        this.doSearch();
+                    }, 500);
+                },
+
+                doSearch() {
+                    if (!this.keyword) return;
+
+                    // 更新URL参数（不刷新页面）
+                    const newUrl = `search.html?keyword=${encodeURIComponent(this.keyword)}`;
+                    window.history.pushState({}, '', newUrl);
+
+                    if (this._evtSource) {
+                        this._evtSource.close();
+                        this._evtSource = null;
+                    }
+
+                    this.loading = true;
+                    this.rawList = [];
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+                    const url = `/api/search?wd=${encodeURIComponent(this.keyword)}&stream=true`;
+                    this._evtSource = new EventSource(url);
+
+                    this._evtSource.onmessage = (e) => {
+                        try {
+                            const newItems = JSON.parse(e.data);
+                            if (Array.isArray(newItems) && newItems.length > 0) {
+                                this.rawList = this.rawList.concat(newItems);
+                                newItems.forEach(item => {
+                                    if (!item.vod_pic || item.vod_pic.includes('mac_default')) this.handleImgError(item.vod_name);
+                                });
+                            }
+                        } catch (err) { }
+                    };
+
+                    this._evtSource.addEventListener('done', () => {
+                        this.loading = false;
+                        if (this._evtSource) {
+                            this._evtSource.close();
+                            this._evtSource = null;
+                        }
+                    });
+
+                    this._evtSource.onerror = () => {
+                        this.loading = false;
+                        if (this._evtSource) {
+                            this._evtSource.close();
+                            this._evtSource = null;
+                        }
+                    };
+                },
+
+                // 点击搜索结果 - 使用sessionStorage传递数据
+                openDetail(group) {
+                    // 将完整的group数据存储到sessionStorage
+                    sessionStorage.setItem('currentMovie', JSON.stringify(group));
+                    // 跳转到播放器页面
+                    window.location.href = `player.html?name=${encodeURIComponent(group.name)}`;
+                },
+
+                finalPoster(item) {
+                    return this.imageMap[item.name] || item.pic;
+                },
+
+                isFallback(name) {
+                    return this.fallbackMap[name] === true;
+                },
+
+                handleImgError(name) {
+                    if (this.imageMap[name] || this.fallbackMap[name]) return;
+                    this.fallbackMap[name] = true;
+                    let cleanName = name.replace(/第[0-9一二三四五六七八九十]+[季部]/g, '').replace(/Season\s*\d+/ig, '').replace(/S\d{1,2}/ig, '').replace(/(HD|BD|1080P|720P|4K|202\d|TC|TS).*/i, '').trim();
+
+                    fetch('/api/tmdb', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            path: '/search/multi',
+                            params: {
+                                query: cleanName,
+                                language: 'zh-CN'
+                            }
+                        })
+                    })
+                        .then(res => res.json()).then(data => {
+                            if (data.results && data.results.length > 0) {
+                                const found = data.results.find(i => i.poster_path) || data.results[0];
+                                if (found.poster_path) {
+                                    this.imageMap[name] = `${TMDB_IMG_URL}${found.poster_path}`;
+                                    this.fallbackMap[name] = false;
+                                }
+                            }
+                        }).catch(() => { });
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+
+</html>

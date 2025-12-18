@@ -13,15 +13,15 @@
     <link rel="icon" href="icon.png" type="image/png">
     <meta name="theme-color" content="#141414">
 
-    <!-- 本地静态资源 (避免 CDN 访问问题) -->
-    <link href="libs/css/bootstrap.min.css" rel="stylesheet">
-    <link href="libs/css/animate.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="libs/css/fontawesome.min.css">
+    <link href="https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/twitter-bootstrap/5.1.3/css/bootstrap.min.css"
+        rel="stylesheet">
+    <link href="https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/animate.css/4.1.1/animate.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
-    <script src="libs/js/hls.min.js"></script>
-    <script src="libs/js/DPlayer.min.js"></script>
-    <script src="libs/js/vue.global.prod.min.js"></script>
-    <script src="libs/js/bootstrap.bundle.min.js"></script>
+    <script src="https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/hls.js/1.5.3/hls.min.js"></script>
+    <script src="https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/dplayer/1.26.0/DPlayer.min.js"></script>
+    <script src="https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/vue/3.5.15/vue.global.prod.min.js"></script>
+    <script src="https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/bootstrap/5.1.3/js/bootstrap.bundle.min.js"></script>
 
     <style>
         :root {
@@ -1357,7 +1357,7 @@
 
     <div id="app" v-cloak>
 
-        <nav class="navbar-custom" :class="{ 'scrolled': scrollY > 50 }" v-show="!searched">
+        <nav class="navbar-custom" :class="{ 'scrolled': scrollY > 50 }">
             <div class="brand" @click="goHome" style="cursor: pointer;">E视界 <span
                     style="font-size:12px; color:#666; font-weight:normal;">MAX</span></div>
         </nav>
@@ -1368,8 +1368,7 @@
         </button>
 
         <!-- 1. Hero Carousel -->
-        <div id="heroCarousel" class="carousel slide carousel-fade" data-bs-ride="carousel" data-bs-interval="6000"
-            v-if="!searched">
+        <div id="heroCarousel" class="carousel slide carousel-fade" data-bs-ride="carousel" data-bs-interval="6000">
             <div class="carousel-inner" v-if="heroList.length > 0">
                 <div class="carousel-item" v-for="(item, index) in heroList" :key="index"
                     :class="{ active: index === 0 }">
@@ -1392,16 +1391,15 @@
         </div>
 
         <!-- 2. Search -->
-        <div class="search-section"
-            :style="{ marginTop: searched ? '60px' : '-35px', position: searched ? 'relative' : 'sticky' }">
-            <div class="search-box-wrapper" :class="{ 'compact': !searched && scrollY > 400 }">
+        <div class="search-section">
+            <div class="search-box-wrapper" :class="{ 'compact': scrollY > 400 }">
                 <i class="fas fa-search search-icon" @click="doSearch"></i>
-                <input type="text" v-model="keyword" @keyup.enter="doSearch" @input="debouncedSearch"
-                    class="search-input" placeholder="输入片名或剧集名称...">
+                <input type="text" v-model="keyword" @keyup.enter="doSearch" class="search-input"
+                    placeholder="输入片名或剧集名称...">
             </div>
         </div>
 
-        <div v-if="!searched">
+        <div>
             <!-- 分类导航栏 -->
             <div class="category-nav-container animate__animated animate__fadeInUp" style="margin-bottom: 40px;">
                 <div class="category-item" v-for="item in categories" :key="item.name" @click="handleCatClick(item)">
@@ -1484,62 +1482,6 @@
             </div>
         </div>
 
-        <!-- Search Results -->
-        <div id="search-result-anchor" class="section-container" v-if="searched">
-            <div class="d-flex align-items-center gap-2 mb-5 mt-2">
-                <button class="btn btn-outline-secondary rounded-pill px-3 px-md-4 py-2" @click="goHome"
-                    style="color: #fff; border-color: rgba(255,255,255,0.3);">
-                    <i class="fas fa-arrow-left me-0 me-md-2"></i><span class="d-none d-md-inline">返回首页</span>
-                </button>
-                <div class="section-header mb-0 ms-3 ms-md-4">
-                    <div class="section-line"></div>
-                    <div class="section-title">正在搜索: "{{ keyword }}"</div>
-                </div>
-            </div>
-
-            <!-- 搜索结果网格 (即使在 loading 也可以显示) -->
-            <div class="result-grid" v-if="groupedList.length > 0">
-                <div class="result-card" v-for="group in groupedList" :key="group.name" @click="openDetail(group)">
-                    <div class="poster-wrap">
-                        <img v-if="!isFallback(group.name)" :src="finalPoster(group)" :key="finalPoster(group)"
-                            referrerpolicy="no-referrer" @error="handleImgError(group.name)" loading="lazy">
-                        <div v-else class="poster-fallback">
-                            <i class="fas fa-film mb-2 opacity-50"></i>
-                            <div style="font-size:12px; color:#999">{{ group.name }}</div>
-                        </div>
-                        <div class="rating-badge" style="background:var(--accent); color:#fff; border:none;">
-                            {{ group.sources.length }} 源
-                        </div>
-                    </div>
-                    <div class="movie-name">{{ group.name }}</div>
-                </div>
-            </div>
-
-            <!-- 加载中提示 (如果没结果居中，有结果在底部) -->
-            <div v-if="loading" class="text-center py-4">
-                <div class="spinner-border text-danger" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-                <div class="mt-2 text-muted small" v-if="groupedList.length > 0">正在搜索更多资源...</div>
-                <div class="mt-2 text-muted small" v-else>正在全网搜索...</div>
-            </div>
-
-            <div v-if="!loading && groupedList.length === 0" class="text-center"
-                style="padding: 60px 20px; margin-top: -20px;">
-                <i class="fas fa-search" style="font-size: 48px; color: #444; margin-bottom: 20px;"></i>
-                <h4 style="color: #888; margin-bottom: 15px;">暂未找到「{{ keyword }}」的相关资源</h4>
-                <div style="color: #666; font-size: 14px; line-height: 1.8; max-width: 400px; margin: 0 auto;">
-                    <p style="margin-bottom: 8px;">📌 新上映的电影/剧集可能需要等待1-2周才有资源</p>
-                    <p style="margin-bottom: 8px;">💡 尝试搜索电影的中文名</p>
-                    <p>🔍 或尝试搜索其他热门影片</p>
-                </div>
-                <button class="btn btn-outline-danger mt-4" @click="clearSearch"
-                    style="border-radius: 20px; padding: 8px 25px;">
-                    <i class="fas fa-home"></i> 返回首页
-                </button>
-            </div>
-        </div>
-
         <div class="footer">
             <div style="font-size:10px; margin-top:5px; opacity:0.5;">Data provided by TMDb & Maccms APIs</div>
         </div>
@@ -1573,143 +1515,6 @@
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <!-- ★★★ 播放详情页 (影院布局) ★★★ -->
-        <div class="detail-overlay" :class="{ active: showDetail }">
-            <div class="close-btn" @click="closeDetail"><i class="fas fa-times"></i></div>
-
-            <div class="player-layout" v-if="currentGroup">
-
-                <!-- 1. 顶部：标题栏 + 投屏 -->
-                <div class="video-header">
-                    <div>
-                        <h1 class="video-title">{{ currentGroup.name }}</h1>
-                        <div class="video-meta">
-                            正在播放: <span class="text-white fw-bold">{{ currentSource?.site_name }}</span>
-                        </div>
-                    </div>
-                    <button class="btn-cast" @click="castVideo">
-                        <i class="fas fa-tv"></i> 一键投屏
-                    </button>
-                </div>
-
-                <!-- 2. 中部：超大播放器 -->
-                <div class="player-box" style="position: relative;">
-                    <div id="dplayer" style="width: 100%; height: 100%;"></div>
-                    <!-- 自动切换线路提示 -->
-                    <div v-if="autoRetryMessage" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-                               background: rgba(0,0,0,0.9); padding: 20px 30px; border-radius: 10px; 
-                               text-align: center; z-index: 100; border: 1px solid rgba(255,255,255,0.1);">
-                        <i class="fas fa-sync-alt fa-spin"
-                            style="font-size: 24px; color: #e50914; margin-bottom: 10px;"></i>
-                        <div style="color: #fff; font-weight: bold;">{{ autoRetryMessage }}</div>
-                        <div style="color: #888; font-size: 12px; margin-top: 5px;">正在自动切换...</div>
-                    </div>
-                </div>
-
-                <!-- 3. 底部：控制面板 -->
-                <div class="controls-area">
-                    <!-- 剧集简介 -->
-                    <div class="mb-4" v-if="currentSource">
-                        <div class="panel-title">剧情简介</div>
-                        <p
-                            style="color: #999; font-size: 13px; line-height: 1.7; max-height: 80px; overflow-y: auto; margin: 0;">
-                            <span v-if="loadingDetail"><i class="fas fa-spinner fa-spin"></i> 加载中...</span>
-                            <span v-else>{{ stripHtml(currentSource.vod_content) || '暂无简介信息' }}</span>
-                        </p>
-                    </div>
-
-                    <!-- 线路选择 -->
-                    <div class="mb-4">
-                        <div class="panel-title">
-                            切换线路
-                            <span v-if="isTestingSources" style="font-size: 12px; color: #888; font-weight: normal;">
-                                <i class="fas fa-spinner fa-spin"></i> 正在测速...
-                            </span>
-                        </div>
-
-                        <!-- 测速类型图例 -->
-                        <div v-if="!isTestingSources && (fastSources.length > 0 || slowSources.length > 0)"
-                            style="font-size: 11px; color: #666; margin-bottom: 10px; display: flex; gap: 15px; align-items: center;">
-                            <span style="display: flex; align-items: center; gap: 4px;">
-                                <span
-                                    style="background: linear-gradient(135deg, #10b981, #059669); color: #fff; padding: 1px 5px; border-radius: 3px; font-size: 9px;">直连</span>
-                                用户端测速（更准确）
-                            </span>
-                            <span style="display: flex; align-items: center; gap: 4px;">
-                                <span
-                                    style="background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; padding: 1px 5px; border-radius: 3px; font-size: 9px;">代理</span>
-                                服务器测速
-                            </span>
-                        </div>
-
-                        <!-- 快速线路列表 (< 600ms) -->
-                        <div class="source-list" v-if="fastSources.length > 0 || slowSources.length > 0">
-                            <!-- 快速线路 -->
-                            <div v-for="source in fastSources" class="source-pill"
-                                :class="{ active: currentSource?.site_key === source.site_key }"
-                                @click="switchSource(source)">
-                                <span>{{ source.site_name }}</span>
-                                <span class="latency-dot" :class="getLatencyClass(source.latency)"></span>
-                                <span style="font-size:10px; opacity:0.6;">{{source.latency}}ms</span>
-                                <span v-if="source._testType === 'direct'"
-                                    style="background: linear-gradient(135deg, #10b981, #059669); color: #fff; padding: 1px 5px; border-radius: 3px; font-size: 9px; margin-left: 4px;">
-                                    直连
-                                </span>
-                                <span v-else
-                                    style="background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; padding: 1px 5px; border-radius: 3px; font-size: 9px; margin-left: 4px;">
-                                    代理
-                                </span>
-                            </div>
-                            <!-- 慢速线路分隔符 -->
-                            <div v-if="slowSources.length > 0 && fastSources.length > 0"
-                                style="width: 100%; font-size: 11px; color: #666; padding: 8px 0; border-top: 1px solid #333; margin-top: 5px;">
-                                <i class="fas fa-hourglass-half"></i> 较慢线路 ({{ slowSources.length }})
-                            </div>
-                            <!-- 慢速线路 -->
-                            <div v-for="source in slowSources" class="source-pill"
-                                :class="{ active: currentSource?.site_key === source.site_key }" style="opacity: 0.7;"
-                                @click="switchSource(source)">
-                                <span>{{ source.site_name }}</span>
-                                <span class="latency-dot" :class="getLatencyClass(source.latency)"></span>
-                                <span style="font-size:10px; opacity:0.6;">{{source.latency}}ms</span>
-                                <span v-if="source._testType === 'direct'"
-                                    style="background: linear-gradient(135deg, #10b981, #059669); color: #fff; padding: 1px 5px; border-radius: 3px; font-size: 9px; margin-left: 4px;">
-                                    直连
-                                </span>
-                                <span v-else
-                                    style="background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; padding: 1px 5px; border-radius: 3px; font-size: 9px; margin-left: 4px;">
-                                    代理
-                                </span>
-                            </div>
-                        </div>
-
-                        <!-- 全部不可用提示 -->
-                        <div v-else-if="!isTestingSources && fastSources.length === 0 && slowSources.length === 0"
-                            class="text-center py-4"
-                            style="background: rgba(255,0,0,0.1); border-radius: 8px; border: 1px solid rgba(255,0,0,0.2);">
-                            <i class="fas fa-exclamation-triangle text-warning" style="font-size: 24px;"></i>
-                            <div class="mt-2" style="color: #ff6b6b;">所有采集站均不可用</div>
-                            <div class="mt-1" style="font-size: 12px; color: #888;">请稍后重试或尝试搜索其他资源</div>
-                        </div>
-                    </div>
-
-                    <!-- 选集列表 (全宽网格) -->
-                    <div>
-                        <div class="panel-title">选集播放</div>
-                        <div v-if="loadingDetail" class="text-center py-5 text-muted"><i
-                                class="fas fa-spinner fa-spin"></i> 加载中...</div>
-                        <div v-else class="ep-grid">
-                            <div v-for="ep in episodeList" class="ep-btn" :class="{ active: currentUrl === ep.url }"
-                                @click="play(ep.url)">
-                                {{ ep.name }}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
             </div>
         </div>
 
@@ -1911,23 +1716,14 @@
         createApp({
             data() {
                 return {
-                    searchTimer: null,  // 防抖搜索定时器
-                    isTestingSources: false,  // 正在测速状态
+                    keyword: '',  // 搜索关键词
                     showInfoModal: false,  // 电影详情弹窗
                     infoModalData: null,   // 弹窗数据
                     TMDB_IMG_URL: TMDB_IMG_URL,  // 模板中使用
                     TMDB_BACKDROP_URL: TMDB_BACKDROP_URL,
 
-                    // 恢复缺失的状态变量
-                    keyword: '', loading: false, searched: false, rawList: [],
-                    showDetail: false, currentGroup: null, currentSource: null,
-                    episodeList: [], currentUrl: '', loadingDetail: false,
-                    imageMap: {}, fallbackMap: {}, heroList: [], scrollY: 0,
-                    hotList: [],
-                    sitesMap: {},  // 缓存站点信息（用于客户端测速）
-                    playbackErrorCount: 0,  // 播放失败计数
-                    isAutoRetrying: false,  // 是否正在自动重试
-                    autoRetryMessage: '',  // 自动切换提示信息
+                    heroList: [],
+                    scrollY: 0,
 
                     // === 动态榜单配置 ===
                     rowLists: {}, // 存储各榜单数据 { movieRow: [...], ... }
@@ -1995,42 +1791,7 @@
                 };
             },
             computed: {
-                groupedList() {
-                    const groups = {};
-                    this.rawList.forEach(item => {
-                        const name = item.vod_name;
-                        if (!groups[name]) groups[name] = { name: name, pic: item.vod_pic, sources: [] };
-                        const isDefault = (url) => !url || url.includes('mac_default') || url.includes('nopic');
-                        if (isDefault(groups[name].pic) && !isDefault(item.vod_pic)) groups[name].pic = item.vod_pic;
-                        if (isDefault(groups[name].pic)) this.handleImgError(name);
-
-                        groups[name].sources.push({
-                            ...item,
-                            latency: item.latency || 999
-                        });
-                    });
-                    return Object.values(groups).sort((a, b) => b.sources.length - a.sources.length);
-                },
-                // 快速线路 (延迟 < 600ms)
-                fastSources() {
-                    if (!this.currentGroup || !this.currentGroup.sources) return [];
-                    return this.currentGroup.sources.filter(s => {
-                        if (s.latency === '...') return false;
-                        return typeof s.latency === 'number' && s.latency < 600;
-                    });
-                },
-                // 慢速线路 (600ms <= 延迟 < 9000ms，非超时)
-                slowSources() {
-                    if (!this.currentGroup || !this.currentGroup.sources) return [];
-                    return this.currentGroup.sources.filter(s => {
-                        if (s.latency === '...') return false;
-                        return typeof s.latency === 'number' && s.latency >= 600 && s.latency < 9000;
-                    });
-                },
-                // 兼容旧代码的 availableSources（包含快速和慢速）
-                availableSources() {
-                    return [...this.fastSources, ...this.slowSources];
-                }
+                // 所有computed属性都已删除，因为搜索和播放功能已移至独立页面
             },
             methods: {
                 async initApp() {
@@ -2382,268 +2143,13 @@
 
 
 
+                // 跳转到搜索页面
                 autoSearch(name) {
-                    this.keyword = name;
-                    this.doSearch();
+                    window.location.href = `search.html?keyword=${encodeURIComponent(name)}`;
                 },
-                clearSearch() { this.searched = false; this.keyword = ''; this.rawList = []; },
                 doSearch() {
                     if (!this.keyword) return;
-
-                    if (this._evtSource) {
-                        this._evtSource.close();
-                        this._evtSource = null;
-                    }
-
-                    this.loading = true;
-                    this.searched = true;
-                    this.rawList = [];
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-
-                    const url = `/api/search?wd=${encodeURIComponent(this.keyword)}&stream=true`;
-                    this._evtSource = new EventSource(url);
-
-                    this._evtSource.onmessage = (e) => {
-                        try {
-                            const newItems = JSON.parse(e.data);
-                            if (Array.isArray(newItems) && newItems.length > 0) {
-                                this.rawList = this.rawList.concat(newItems);
-                                newItems.forEach(item => {
-                                    if (!item.vod_pic || item.vod_pic.includes('mac_default')) this.handleImgError(item.vod_name);
-                                });
-                            }
-                        } catch (err) { }
-                    };
-
-                    this._evtSource.addEventListener('done', () => {
-                        this.loading = false;
-                        if (this._evtSource) {
-                            this._evtSource.close();
-                            this._evtSource = null;
-                        }
-                    });
-
-                    this._evtSource.onerror = () => {
-                        this.loading = false;
-                        if (this._evtSource) {
-                            this._evtSource.close();
-                            this._evtSource = null;
-                        }
-                    };
-                },
-                async openDetail(group) {
-                    this.currentGroup = group;
-                    this.showDetail = true;
-                    this.currentSource = null;
-                    this.episodeList = [];
-                    this.isTestingSources = true;  // 显示测速中状态
-
-                    try {
-                        // 调用服务器端测试接口
-                        console.log(`[Server Test] 开始服务器端测速...`);
-
-                        // 精简数据：只传递后端需要的三个字段
-                        const slimSources = this.currentGroup.sources.map(source => ({
-                            site_key: source.site_key,
-                            site_name: source.site_name,
-                            vod_id: source.vod_id
-                        }));
-
-                        const res = await fetch('/api/test-sources', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ sources: slimSources })
-                        });
-
-                        const data = await res.json();
-
-                        if (data.sources && data.sources.length > 0) {
-                            // 用测试后的源替换原始源列表
-                            this.currentGroup.sources = data.sources;
-
-                            console.log(`[Server Test] 完成: ${data.available}/${data.total} 个源可用`);
-
-                            // 自动选择第一个(延迟最低的)可用源
-                            await this.switchSource(data.sources[0]);
-                        } else {
-                            console.warn(`[Server Test] 所有源均不可用`);
-                        }
-                    } catch (error) {
-                        console.error(`[Server Test] 测速失败:`, error);
-                        // 降级:直接使用第一个源
-                        if (this.currentGroup.sources && this.currentGroup.sources.length > 0) {
-                            await this.switchSource(this.currentGroup.sources[0]);
-                        }
-                    } finally {
-                        this.isTestingSources = false;
-                    }
-                },
-                closeDetail() { this.showDetail = false; if (dp) dp.pause(); },
-                async switchSource(source) {
-                    this.currentSource = source;
-                    this.loadingDetail = true;
-                    this.episodeList = [];
-
-                    try {
-                        // 优先使用测速时缓存的详情数据
-                        let detail = source._cachedDetail;
-
-                        if (!detail) {
-                            // 如果没有缓存，重新获取
-                            const res = await fetch(`/api/detail?site_key=${source.site_key}&id=${source.vod_id}`);
-                            const data = await res.json();
-                            if (data.list && data.list.length > 0) {
-                                detail = data.list[0];
-                            }
-                        }
-
-                        if (detail) {
-                            // 保存简介信息到当前源
-                            this.currentSource.vod_content = detail.vod_content || detail.vod_blurb || '';
-                            this.parseEpisodes(detail.vod_play_url);
-                        }
-                    } catch (e) { }
-                    this.loadingDetail = false;
-                },
-                parseEpisodes(urlStr) {
-                    let playSource = urlStr;
-                    if (urlStr.includes('$$$')) {
-                        const sets = urlStr.split('$$$');
-                        playSource = sets.find(s => s.toLowerCase().includes('m3u8')) || sets[0];
-                    }
-                    this.episodeList = playSource.split('#').map(ep => {
-                        const p = ep.split('$');
-                        return { name: p.length > 1 ? p[0] : '正片', url: p.length > 1 ? p[1] : p[0] };
-                    });
-                    if (this.episodeList.length > 0) this.play(this.episodeList[0].url);
-                },
-                play(url) {
-                    this.currentUrl = url;
-                    this.playbackErrorCount = 0;  // 重置错误计数
-
-                    // 将原始 URL 包装为代理 URL
-                    const proxyUrl = `/api/proxy/m3u8?url=${btoa(url)}`;
-
-                    const setupErrorHandling = () => {
-                        // 监听播放错误,自动切换到下一个可用线路
-                        dp.on('error', () => {
-                            this.handlePlaybackError();
-                        });
-
-                        // 监听 HLS 错误
-                        if (dp.video) {
-                            dp.video.addEventListener('error', () => {
-                                this.handlePlaybackError();
-                            });
-                        }
-                    };
-
-                    if (!dp) {
-                        dp = new DPlayer({
-                            container: document.getElementById('dplayer'),
-                            theme: '#e50914',
-                            video: {
-                                url: proxyUrl,
-                                type: 'customHls',
-                                customType: {
-                                    customHls: function (video, player) {
-                                        const hls = new Hls({
-                                            // 激进的预加载策略
-                                            maxBufferLength: 30,        // 预加载 30 秒
-                                            maxMaxBufferLength: 60,     // 最大缓冲 60 秒
-                                            maxBufferSize: 60 * 1024 * 1024,  // 60MB 缓冲
-                                            maxBufferHole: 0.5,
-
-                                            // 降低延迟配置
-                                            liveSyncDurationCount: 3,
-                                            liveMaxLatencyDurationCount: 10,
-
-                                            // 启用分片预加载
-                                            startFragPrefetch: true,
-
-                                            // HTTP/1.1 优化（虽然受限于并发）
-                                            manifestLoadingMaxRetry: 3,
-                                            levelLoadingMaxRetry: 3,
-                                            fragLoadingMaxRetry: 3,
-
-                                            // 减少带宽测试开销
-                                            testBandwidth: false,
-
-                                            // debug: true  // 调试时可启用
-                                        });
-
-                                        hls.loadSource(video.src);
-                                        hls.attachMedia(video);
-
-                                        // 监听 HLS 错误
-                                        hls.on(Hls.Events.ERROR, function (event, data) {
-                                            if (data.fatal) {
-                                                console.error('[HLS Error]', data);
-                                            }
-                                        });
-                                    }
-                                }
-                            }
-                        });
-
-                        // 添加全屏横屏功能(手机端)
-                        dp.on('fullscreen', () => {
-                            if (screen.orientation && screen.orientation.lock) {
-                                screen.orientation.lock('landscape').catch(() => { });
-                            }
-                        });
-
-                        dp.on('fullscreen_cancel', () => {
-                            if (screen.orientation && screen.orientation.unlock) {
-                                screen.orientation.unlock();
-                            }
-                        });
-
-                        setupErrorHandling();
-                    } else {
-                        dp.switchVideo({ url: proxyUrl, type: 'hls' });
-                    }
-                    dp.play();
-                },
-
-                // 处理播放错误，自动切换线路
-                handlePlaybackError() {
-                    this.playbackErrorCount++;
-
-                    // 避免重复触发
-                    if (this.isAutoRetrying || this.playbackErrorCount > 1) return;
-
-                    // 获取当前线路索引
-                    const allSources = this.availableSources;
-                    const currentIndex = allSources.findIndex(s => s.site_key === this.currentSource?.site_key);
-
-                    // 如果还有下一个线路可用，自动切换
-                    if (currentIndex >= 0 && currentIndex < allSources.length - 1) {
-                        this.isAutoRetrying = true;
-                        const nextSource = allSources[currentIndex + 1];
-
-                        // 显示用户提示
-                        this.autoRetryMessage = `${this.currentSource?.site_name} 播放失败，正在尝试 ${nextSource.site_name}`;
-                        console.log(`[Auto-Failover] ${this.autoRetryMessage}`);
-
-                        // 标记当前线路为不可用（设置高延迟）
-                        if (this.currentSource) {
-                            this.currentSource.latency = 9998;  // 标记为用户端不可用
-                        }
-
-                        // 切换到下一个线路
-                        setTimeout(() => {
-                            this.autoRetryMessage = '';  // 清除提示
-                            this.isAutoRetrying = false;
-                            this.switchSource(nextSource);
-                        }, 1500);  // 显示提示1.5秒后切换
-                    } else {
-                        // 没有更多可用线路
-                        this.autoRetryMessage = '所有线路均无法播放';
-                        setTimeout(() => {
-                            this.autoRetryMessage = '';
-                        }, 3000);
-                    }
+                    window.location.href = `search.html?keyword=${encodeURIComponent(this.keyword)}`;
                 }
             }
         }).mount('#app');
