@@ -768,7 +768,11 @@
 
                         console.log('[Play] 切换视频:', switchProxyUrl);
                         if (window.shakaPlayerInstance && dp.video) {
-                            window.shakaPlayerInstance.load(switchProxyUrl).then(() => {
+                            // ⭐ 关键：先unload停止旧流，再load新流
+                            window.shakaPlayerInstance.unload().then(() => {
+                                console.log('[Shaka] 旧流已卸载，加载新流...');
+                                return window.shakaPlayerInstance.load(switchProxyUrl);
+                            }).then(() => {
                                 console.log('[Shaka Player] 切换成功，开始播放');
                                 dp.video.play().catch(e => console.warn('[Play] 播放被阻止:', e));
                             }).catch(e => {
