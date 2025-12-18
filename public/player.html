@@ -511,45 +511,31 @@
                     }
                 },
 
-                // 测速并播放
+                // 测速并播放 - 简化版：不进行服务器端测速
                 async testAndPlaySources() {
-                    this.isTestingSources = true;
+                    this.isTestingSources = false;
 
                     try {
-                        console.log(`[Server Test] 开始服务器端测速...`);
+                        console.log(`[Player] 准备播放...`);
 
-                        // 精简数据
-                        const slimSources = this.currentGroup.sources.map(source => ({
-                            site_key: source.site_key,
-                            site_name: source.site_name,
-                            vod_id: source.vod_id
-                        }));
+                        // 直接使用第一个源
+                        if (this.currentGroup.sources && this.currentGroup.sources.length > 0) {
+                            // 按源数量排序，优先使用源多的（更可靠）
+                            const sortedSources = [...this.currentGroup.sources].sort((a, b) => {
+                                // 如果有latency数据，按延迟排序
+                                if (a.latency && b.latency) {
+                                    return a.latency - b.latency;
+                                }
+                                return 0;
+                            });
 
-                        const res = await fetch('/api/test-sources', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ sources: slimSources })
-                        });
-
-                        const data = await res.json();
-
-                        if (data.sources && data.sources.length > 0) {
-                            this.currentGroup.sources = data.sources;
-                            console.log(`[Server Test] 完成: ${data.available}/${data.total} 个源可用`);
-
-                            // 自动选择第一个可用源
-                            await this.switchSource(data.sources[0]);
+                            await this.switchSource(sortedSources[0]);
+                            console.log(`[Player] 已选择源: ${sortedSources[0].site_name}`);
                         } else {
-                            console.warn(`[Server Test] 所有源均不可用`);
+                            console.warn(`[Player] 没有可用的视频源`);
                         }
                     } catch (error) {
-                        console.error(`[Server Test] 测速失败:`, error);
-                        // 降级：直接使用第一个源
-                        if (this.currentGroup.sources && this.currentGroup.sources.length > 0) {
-                            await this.switchSource(this.currentGroup.sources[0]);
-                        }
-                    } finally {
-                        this.isTestingSources = false;
+                        console.error(`[Player] 初始化失败:`, error);
                     }
                 },
 
