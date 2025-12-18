@@ -16,7 +16,9 @@
         rel="stylesheet">
     <link rel="stylesheet" href="https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
-    <script src="https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/hls.js/1.5.3/hls.min.js"></script>
+    <!-- Shaka Player for better parallel downloading -->
+    <script
+        src="https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/shaka-player/4.7.11/shaka-player.compiled.min.js"></script>
     <script src="https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/dplayer/1.26.0/DPlayer.min.js"></script>
     <script src="https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/vue/3.5.15/vue.global.prod.min.js"></script>
 
@@ -607,48 +609,68 @@
                                 type: 'customHls',
                                 customType: {
                                     customHls: function (video, player) {
-                                        const hls = new Hls({
-                                            // 激进的预加载策略 - 大幅增加缓冲区以减少卡顿
-                                            maxBufferLength: 90,        // 预加载 90 秒 (原30s，增加3倍)
-                                            maxMaxBufferLength: 150,    // 最大缓冲 150 秒 (原60s，增加2.5倍)
-                                            maxBufferSize: 150 * 1024 * 1024,  // 150MB 缓冲 (原60MB，增加2.5倍)
-                                            maxBufferHole: 0.3,         // 减小缓冲洞阈值 (原0.5，更快填充)
+                                        // 使用Shaka Player替代HLS.js
+                                        const shakaPlayer = new shaka.Player(video);
 
-                                            // 降低延迟配置
-                                            liveSyncDurationCount: 3,
-                                            liveMaxLatencyDurationCount: 10,
+                                        // Shaka Player配置 - 优化并行下载
+                                        shakaPlayer.configure({
+                                            streaming: {
+                                                // 并行分片下载配置
+                                                bufferingGoal: 90,              // 缓冲目标90秒
+                                                rebufferingGoal: 2,              // 重新缓冲目标2秒
+                                                bufferBehind: 30,                // 保留后30秒缓冲
 
-                                            // 启用分片预加载和智能预测
-                                            startFragPrefetch: true,
-                                            progressive: true,           // 启用渐进式下载
+                                                // ⭐ 关键：启用并行分片下载
+                                                segmentPrefetchLimit: 4,         // 预取4个分片
+                                                maxDisabledTime: 30,             // 最大禁用时间
 
-                                            fragLoadingMaxRetryTimeout: 2000,  // 分片加载超时时间
-                                            fragLoadingTimeOut: 20000,   // 分片加载总超时
-                                            fragLoadingMaxRetry: 6,      // 增加重试次数
+                                                // 重试策略
+                                                retryParameters: {
+                                                    timeout: 20000,              // 超时20秒
+                                                    maxAttempts: 6,              // 最大尝试6次
+                                                    baseDelay: 1000,             // 基础延迟1秒
+                                                    backoffFactor: 2,            // 退避因子
+                                                    fuzzFactor: 0.5              // 模糊因子
+                                                },
 
-                                            // 增加重试次数
-                                            manifestLoadingMaxRetry: 5,  // 增加到5次 (原3次)
-                                            levelLoadingMaxRetry: 5,     // 增加到5次 (原3次)
+                                                // ABR自适应码率
+                                                useNetworkInformation: true,     // 使用网络信息API
+                                                bufferBehindGoal: 30,            // 保持30秒后向缓冲
+                                            },
 
-                                            // 性能优化
-                                            testBandwidth: false,
-                                            enableWorker: true,          // 启用Web Worker提升性能
-                                            lowLatencyMode: false,       // 禁用低延迟模式，优先流畅度
+                                            abr: {
+                                                enabled: true,                   // 启用ABR
+                                                defaultBandwidthEstimate: 1000000, // 初始带宽估计1Mbps
+                                                switchInterval: 8,               // 切换间隔8秒
+                                                bandwidthUpgradeTarget: 0.85,    // 带宽升级目标85%
+                                                bandwidthDowngradeTarget: 0.95,  // 带宽降级目标95%
+                                            },
 
-                                            // 自动码率选择优化
-                                            abrEwmaDefaultEstimate: 50000,  // 初始带宽估计 50kbps
-                                            abrBandWidthFactor: 1,        // 带宽因子 (保守)
-                                            abrBandWidthUpFactor: 0.9,       // 上调带宽因子
-                                        });
-
-                                        hls.loadSource(video.src);
-                                        hls.attachMedia(video);
-
-                                        hls.on(Hls.Events.ERROR, function (event, data) {
-                                            if (data.fatal) {
-                                                console.error('[HLS Error]', data);
+                                            manifest: {
+                                                retryParameters: {
+                                                    timeout: 20000,
+                                                    maxAttempts: 5,
+                                                    baseDelay: 1000,
+                                                    backoffFactor: 2,
+                                                    fuzzFactor: 0.5
+                                                }
                                             }
                                         });
+
+                                        // 加载视频源
+                                        shakaPlayer.load(video.src).then(() => {
+                                            console.log('[Shaka Player] 加载成功');
+                                        }).catch((error) => {
+                                            console.error('[Shaka Player] 加载失败:', error);
+                                        });
+
+                                        // 错误处理
+                                        shakaPlayer.addEventListener('error', (event) => {
+                                            console.error('[Shaka Player Error]', event.detail);
+                                        });
+
+                                        // 存储player实例以便后续使用
+                                        window.shakaPlayerInstance = shakaPlayer;
                                     }
                                 }
                             }
