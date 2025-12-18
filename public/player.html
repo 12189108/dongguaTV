@@ -583,17 +583,29 @@
                             this.currentSource.vod_content = detail.vod_content || detail.vod_blurb || '';
                             // 解析集数但不自动播放
                             this.parseEpisodes(detail.vod_play_url, false);
+                            console.log('📺 [Switch Source] 解析到', this.episodeList.length, '集');
 
-                            // 尝试播放相同集数的URL
-                            if (currentPlayingUrl && this.episodeList.length > 0) {
-                                // 查找当前播放的是第几集
-                                const currentEpisodeIndex = this.episodeList.findIndex(ep => ep.url === currentPlayingUrl);
-                                // 如果找到了，播放相同索引的集数；否则播放第一集
-                                const targetIndex = currentEpisodeIndex >= 0 ? currentEpisodeIndex : 0;
-                                if (this.episodeList[targetIndex]) {
-                                    console.log(`[Switch Source] 继续播放第 ${targetIndex + 1} 集`);
-                                    this.play(this.episodeList[targetIndex].url);
+                            // 开始播放
+                            if (this.episodeList.length > 0) {
+                                let targetIndex = 0;
+
+                                // 如果之前有播放的URL，尝试找到相同集数
+                                if (currentPlayingUrl) {
+                                    const currentEpisodeIndex = this.episodeList.findIndex(ep => ep.url === currentPlayingUrl);
+                                    if (currentEpisodeIndex >= 0) {
+                                        targetIndex = currentEpisodeIndex;
+                                        console.log(`▶️ [Switch Source] 继续播放第 ${targetIndex + 1} 集`);
+                                    } else {
+                                        console.log(`▶️ [Switch Source] 未找到相同集数，播放第1集`);
+                                    }
+                                } else {
+                                    // 第一次加载，直接播放第一集
+                                    console.log(`▶️ [Switch Source] 首次加载，播放第1集`);
                                 }
+
+                                this.play(this.episodeList[targetIndex].url);
+                            } else {
+                                console.warn('⚠️ [Switch Source] 没有可播放的分集');
                             }
                         }
                     } catch (e) {
