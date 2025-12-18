@@ -555,17 +555,6 @@
                     console.log('🔄 [Switch Source] 切换到:', source.site_name, '(site_key:', source.site_key, ')');
                     console.log('🔄 [Switch Source] 完整source对象:', source);
 
-                    // ⭐ 中止之前的加载
-                    if (window.shakaPlayerInstance) {
-                        try {
-                            console.log('🛑 [Switch Source] 卸载之前的Shaka Player...');
-                            await window.shakaPlayerInstance.unload();
-                            console.log('✅ [Switch Source] 卸载完成');
-                        } catch (e) {
-                            console.warn('⚠️ [Switch Source] 卸载失败，但继续:', e);
-                        }
-                    }
-
                     this.currentSource = source;
                     this.loadingDetail = true;
                     this.episodeList = [];
