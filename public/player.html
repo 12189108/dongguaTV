@@ -552,25 +552,49 @@
                 },
 
                 async switchSource(source) {
+                    console.log('🔄 [Switch Source] 切换到:', source.site_name, '(site_key:', source.site_key, ')');
+                    console.log('🔄 [Switch Source] 完整source对象:', source);
+
                     this.currentSource = source;
                     this.loadingDetail = true;
                     this.episodeList = [];
+
+                    // 记住当前正在播放的URL，用于切换源后继续播放相同集数
+                    const currentPlayingUrl = this.currentUrl;
 
                     try {
                         // 优先使用缓存的详情数据
                         let detail = source._cachedDetail;
 
                         if (!detail) {
-                            const res = await fetch(`/api/detail?site_key=${source.site_key}&id=${source.vod_id}`);
+                            const apiUrl = `/api/detail?site_key=${source.site_key}&id=${source.vod_id}`;
+                            console.log('📡 [Switch Source] 请求API:', apiUrl);
+                            const res = await fetch(apiUrl);
                             const data = await res.json();
                             if (data.list && data.list.length > 0) {
                                 detail = data.list[0];
+                                console.log('✅ [Switch Source] 获取详情成功:', detail.vod_name);
                             }
+                        } else {
+                            console.log('💾 [Switch Source] 使用缓存');
                         }
 
                         if (detail) {
                             this.currentSource.vod_content = detail.vod_content || detail.vod_blurb || '';
-                            this.parseEpisodes(detail.vod_play_url);
+                            // 解析集数但不自动播放
+                            this.parseEpisodes(detail.vod_play_url, false);
+
+                            // 尝试播放相同集数的URL
+                            if (currentPlayingUrl && this.episodeList.length > 0) {
+                                // 查找当前播放的是第几集
+                                const currentEpisodeIndex = this.episodeList.findIndex(ep => ep.url === currentPlayingUrl);
+                                // 如果找到了，播放相同索引的集数；否则播放第一集
+                                const targetIndex = currentEpisodeIndex >= 0 ? currentEpisodeIndex : 0;
+                                if (this.episodeList[targetIndex]) {
+                                    console.log(`[Switch Source] 继续播放第 ${targetIndex + 1} 集`);
+                                    this.play(this.episodeList[targetIndex].url);
+                                }
+                            }
                         }
                     } catch (e) {
                         console.error('Switch source error:', e);
@@ -578,7 +602,7 @@
                     this.loadingDetail = false;
                 },
 
-                parseEpisodes(urlStr) {
+                parseEpisodes(urlStr, autoPlay = true) {
                     let playSource = urlStr;
                     if (urlStr.includes('$$$')) {
                         const sets = urlStr.split('$$$');
@@ -588,7 +612,11 @@
                         const p = ep.split('$');
                         return { name: p.length > 1 ? p[0] : '正片', url: p.length > 1 ? p[1] : p[0] };
                     });
-                    if (this.episodeList.length > 0) this.play(this.episodeList[0].url);
+
+                    // 只有在autoPlay为true时才自动播放第一集
+                    if (autoPlay && this.episodeList.length > 0) {
+                        this.play(this.episodeList[0].url);
+                    }
                 },
 
                 play(url) {
