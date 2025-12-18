@@ -327,8 +327,17 @@ app.get('/api/proxy/m3u8', async (req, res) => {
     }
 
     try {
-        // 解码 URL
-        const originalUrl = Buffer.from(encodedUrl, 'base64').toString('utf-8');
+        // 解码 URL - 匹配前端的safeBase64Encode
+        // 前端: encodeURIComponent → btoa
+        // 后端: atob → decodeURIComponent
+        let originalUrl;
+        try {
+            const decoded = Buffer.from(encodedUrl, 'base64').toString('utf-8');
+            originalUrl = decodeURIComponent(decoded);
+        } catch (e) {
+            // 降级：尝试直接解码（针对旧的btoa编码）
+            originalUrl = Buffer.from(encodedUrl, 'base64').toString('utf-8');
+        }
         console.log(`[M3U8 Proxy] ${originalUrl}`);
 
         // 获取 m3u8 文件
@@ -400,7 +409,14 @@ app.get('/api/proxy/ts', async (req, res) => {
     }
 
     try {
-        const originalUrl = Buffer.from(encodedUrl, 'base64').toString('utf-8');
+        // 解码 URL - 匹配前端编码
+        let originalUrl;
+        try {
+            const decoded = Buffer.from(encodedUrl, 'base64').toString('utf-8');
+            originalUrl = decodeURIComponent(decoded);
+        } catch (e) {
+            originalUrl = Buffer.from(encodedUrl, 'base64').toString('utf-8');
+        }
         console.log(`[TS Proxy] ${originalUrl}`);
 
         const response = await axios({
@@ -440,7 +456,14 @@ app.get('/api/proxy/key', async (req, res) => {
     }
 
     try {
-        const originalUrl = Buffer.from(encodedUrl, 'base64').toString('utf-8');
+        // 解码 URL - 匹配前端编码
+        let originalUrl;
+        try {
+            const decoded = Buffer.from(encodedUrl, 'base64').toString('utf-8');
+            originalUrl = decodeURIComponent(decoded);
+        } catch (e) {
+            originalUrl = Buffer.from(encodedUrl, 'base64').toString('utf-8');
+        }
         console.log(`[KEY Proxy] ${originalUrl}`);
 
         const response = await axios({

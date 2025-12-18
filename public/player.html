@@ -683,11 +683,11 @@
                                                 segmentPrefetchLimit: 4,         // 预取4个分片
                                                 maxDisabledTime: 30,             // 最大禁用时间
 
-                                                // 重试策略
+                                                // ⭐ 快速失败：减少重试和超时
                                                 retryParameters: {
-                                                    timeout: 20000,              // 超时20秒
-                                                    maxAttempts: 6,              // 最大尝试6次
-                                                    baseDelay: 1000,             // 基础延迟1秒
+                                                    timeout: 5000,               // 超时5秒（原20秒）
+                                                    maxAttempts: 2,              // 最多2次（原6次）
+                                                    baseDelay: 500,              // 基础延迟0.5秒
                                                     backoffFactor: 2,            // 退避因子
                                                     fuzzFactor: 0.5              // 模糊因子
                                                 },
@@ -707,9 +707,9 @@
 
                                             manifest: {
                                                 retryParameters: {
-                                                    timeout: 20000,
-                                                    maxAttempts: 5,
-                                                    baseDelay: 1000,
+                                                    timeout: 5000,               // 超时5秒（原20秒）
+                                                    maxAttempts: 2,              // 最多2次（原5次）
+                                                    baseDelay: 500,
                                                     backoffFactor: 2,
                                                     fuzzFactor: 0.5
                                                 }
