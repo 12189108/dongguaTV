@@ -636,10 +636,15 @@
                                             startFragPrefetch: true,
                                             progressive: true,           // 启用渐进式下载
 
+                                            // ⭐ 并行加载优化 - 解决TS分片串行加载问题
+                                            maxLoadingDelay: 2,          // 最大加载延迟2秒，超过后并行加载下一个
+                                            fragLoadingMaxRetryTimeout: 2000,  // 分片加载超时时间
+                                            fragLoadingTimeOut: 20000,   // 分片加载总超时
+                                            fragLoadingMaxRetry: 6,      // 增加重试次数
+
                                             // 增加重试次数
                                             manifestLoadingMaxRetry: 5,  // 增加到5次 (原3次)
                                             levelLoadingMaxRetry: 5,     // 增加到5次 (原3次)
-                                            fragLoadingMaxRetry: 5,      // 增加到5次 (原3次)
 
                                             // 性能优化
                                             testBandwidth: false,

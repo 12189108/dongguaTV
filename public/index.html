@@ -1436,7 +1436,7 @@
                             <div class="hot-card" v-for="item in rowLists[key]" :key="item.id"
                                 @click="autoSearch(item.title || item.name)">
                                 <div class="poster-wrap">
-                                    <img :src="getPosterUrl(item.poster_path)" loading="lazy">
+                                    <img :src="getPosterUrl(item.poster_path)" loading="lazy" decoding="async">
                                     <div class="rating-badge"><i class="fas fa-star text-warning"></i> {{
                                         item.vote_average
                                         ? item.vote_average.toFixed(1) : 'N/A' }}</div>
@@ -1455,7 +1455,7 @@
                         <div class="hot-card" v-for="item in getPagedItems(key)" :key="'grid-' + item.id"
                             @click="autoSearch(item.title || item.name)">
                             <div class="poster-wrap">
-                                <img <img :src="getPosterUrl(item.poster_path)">
+                                <img :src="getPosterUrl(item.poster_path)" loading="lazy" decoding="async">
                                 <div class="rating-badge"><i class="fas fa-star text-warning"></i> {{ item.vote_average
                                     ? item.vote_average.toFixed(1) : 'N/A' }}</div>
                             </div>
