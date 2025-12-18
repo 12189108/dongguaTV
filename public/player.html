@@ -622,17 +622,34 @@
                                 customType: {
                                     customHls: function (video, player) {
                                         const hls = new Hls({
-                                            maxBufferLength: 30,
-                                            maxMaxBufferLength: 60,
-                                            maxBufferSize: 60 * 1024 * 1024,
-                                            maxBufferHole: 0.5,
+                                            // 激进的预加载策略 - 大幅增加缓冲区以减少卡顿
+                                            maxBufferLength: 90,        // 预加载 90 秒 (原30s，增加3倍)
+                                            maxMaxBufferLength: 150,    // 最大缓冲 150 秒 (原60s，增加2.5倍)
+                                            maxBufferSize: 150 * 1024 * 1024,  // 150MB 缓冲 (原60MB，增加2.5倍)
+                                            maxBufferHole: 0.3,         // 减小缓冲洞阈值 (原0.5，更快填充)
+
+                                            // 降低延迟配置
                                             liveSyncDurationCount: 3,
                                             liveMaxLatencyDurationCount: 10,
+
+                                            // 启用分片预加载和智能预测
                                             startFragPrefetch: true,
-                                            manifestLoadingMaxRetry: 3,
-                                            levelLoadingMaxRetry: 3,
-                                            fragLoadingMaxRetry: 3,
+                                            progressive: true,           // 启用渐进式下载
+
+                                            // 增加重试次数
+                                            manifestLoadingMaxRetry: 5,  // 增加到5次 (原3次)
+                                            levelLoadingMaxRetry: 5,     // 增加到5次 (原3次)
+                                            fragLoadingMaxRetry: 5,      // 增加到5次 (原3次)
+
+                                            // 性能优化
                                             testBandwidth: false,
+                                            enableWorker: true,          // 启用Web Worker提升性能
+                                            lowLatencyMode: false,       // 禁用低延迟模式，优先流畅度
+
+                                            // 自动码率选择优化
+                                            abrEwmaDefaultEstimate: 500000,  // 初始带宽估计 500kbps
+                                            abrBandWidthFactor: 0.95,        // 带宽因子 (保守)
+                                            abrBandWidthUpFactor: 0.7,       // 上调带宽因子
                                         });
 
                                         hls.loadSource(video.src);
