@@ -622,7 +622,6 @@
                                             startFragPrefetch: true,
                                             progressive: true,           // 启用渐进式下载
 
-                                            // ⭐ 并行加载优化 - 解决TS分片串行加载问题
                                             fragLoadingMaxRetryTimeout: 2000,  // 分片加载超时时间
                                             fragLoadingTimeOut: 20000,   // 分片加载总超时
                                             fragLoadingMaxRetry: 6,      // 增加重试次数
@@ -637,7 +636,7 @@
                                             lowLatencyMode: false,       // 禁用低延迟模式，优先流畅度
 
                                             // 自动码率选择优化
-                                            abrEwmaDefaultEstimate: 5000000,  // 初始带宽估计 500kbps
+                                            abrEwmaDefaultEstimate: 50000,  // 初始带宽估计 50kbps
                                             abrBandWidthFactor: 1,        // 带宽因子 (保守)
                                             abrBandWidthUpFactor: 0.9,       // 上调带宽因子
                                         });
