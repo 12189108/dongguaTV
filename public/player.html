@@ -419,8 +419,9 @@
                     <div v-if="loadingDetail" class="text-center py-5 text-muted"><i class="fas fa-spinner fa-spin"></i>
                         加载中...</div>
                     <div v-else class="ep-grid">
-                        <div v-for="ep in episodeList" class="ep-btn" :class="{ active: currentUrl === ep.url }"
-                            @click="play(ep.url)">
+                        <div v-for="(ep, index) in episodeList" :key="index" class="ep-btn"
+                            :class="{ active: currentUrl === ep.url }"
+                            @click="currentEpisodeIndex = index; play(ep.url)">
                             {{ ep.name }}
                         </div>
                     </div>
@@ -456,6 +457,7 @@
                     currentSource: null,
                     episodeList: [],
                     currentUrl: '',
+                    currentEpisodeIndex: 0,  // ⭐ 新增：记录当前播放的集数索引
                     loadingDetail: false,
                     isTestingSources: false,
                     playbackErrorCount: 0,
@@ -553,14 +555,14 @@
 
                 async switchSource(source) {
                     console.log('🔄 [Switch Source] 切换到:', source.site_name, '(site_key:', source.site_key, ')');
-                    console.log('🔄 [Switch Source] 完整source对象:', source);
+                    console.log('🔄 [Switch Source] 当前播放集数索引:', this.currentEpisodeIndex);
 
                     this.currentSource = source;
                     this.loadingDetail = true;
                     this.episodeList = [];
 
-                    // 记住当前正在播放的URL，用于切换源后继续播放相同集数
-                    const currentPlayingUrl = this.currentUrl;
+                    // 记住当前正在播放的集数索引
+                    const targetEpisodeIndex = this.currentEpisodeIndex;
 
                     try {
                         // 优先使用缓存的详情数据
@@ -585,31 +587,21 @@
                             this.parseEpisodes(detail.vod_play_url, false);
                             console.log('📺 [Switch Source] 解析到', this.episodeList.length, '集');
 
-                            // 开始播放
+                            // 使用索引来播放相同集数
                             if (this.episodeList.length > 0) {
-                                let targetIndex = 0;
+                                // 确保索引在有效范围内
+                                const safeIndex = Math.min(targetEpisodeIndex, this.episodeList.length - 1);
+                                console.log(`▶️ [Switch Source] 播放第 ${safeIndex + 1} 集`);
 
-                                // 如果之前有播放的URL，尝试找到相同集数
-                                if (currentPlayingUrl) {
-                                    const currentEpisodeIndex = this.episodeList.findIndex(ep => ep.url === currentPlayingUrl);
-                                    if (currentEpisodeIndex >= 0) {
-                                        targetIndex = currentEpisodeIndex;
-                                        console.log(`▶️ [Switch Source] 继续播放第 ${targetIndex + 1} 集`);
-                                    } else {
-                                        console.log(`▶️ [Switch Source] 未找到相同集数，播放第1集`);
-                                    }
-                                } else {
-                                    // 第一次加载，直接播放第一集
-                                    console.log(`▶️ [Switch Source] 首次加载，播放第1集`);
-                                }
-
-                                this.play(this.episodeList[targetIndex].url);
+                                // 更新索引并播放
+                                this.currentEpisodeIndex = safeIndex;
+                                this.play(this.episodeList[safeIndex].url);
                             } else {
                                 console.warn('⚠️ [Switch Source] 没有可播放的分集');
                             }
                         }
                     } catch (e) {
-                        console.error('Switch source error:', e);
+                        console.error('[Switch Source] 错误:', e);
                     }
                     this.loadingDetail = false;
                 },
