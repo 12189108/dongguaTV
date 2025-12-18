@@ -674,22 +674,34 @@
                                         // Shaka Player配置 - 优化并行下载
                                         shakaPlayer.configure({
                                             streaming: {
-                                                // 并行分片下载配置
-                                                bufferingGoal: 90,              // 缓冲目标90秒
+                                                // ⭐ 并行分片下载配置（关键）
+                                                bufferingGoal: 60,              // 缓冲目标60秒（降低以加快启动）
                                                 rebufferingGoal: 2,              // 重新缓冲目标2秒
                                                 bufferBehind: 30,                // 保留后30秒缓冲
 
-                                                // ⭐ 关键：启用并行分片下载
-                                                segmentPrefetchLimit: 4,         // 预取4个分片
-                                                maxDisabledTime: 30,             // 最大禁用时间
+                                                // ⭐⭐⭐ 最关键：并行预取配置
+                                                segmentPrefetchLimit: 6,         // 预取6个分片（增加并行度）
+                                                prefetchLimit: 6,                // 预取限制
+                                                baseDelay: 100,                  // 基础延迟100ms
+
+                                                // 激进的并行策略
+                                                safeSeekOffset: 5,               // 安全seek偏移
+                                                stallEnabled: true,              // 启用卡顿检测
+                                                stallThreshold: 1,               // 卡顿阈值1秒
+                                                stallSkip: 0.1,                  // 跳过0.1秒
+
+                                                // 流模式
+                                                alwaysStreamText: false,         // 不流式加载字幕
+                                                startAtSegmentBoundary: false,   // 不在边界开始
+                                                gapDetectionThreshold: 0.5,      // gap检测阈值
 
                                                 // ⭐ 快速失败：减少重试和超时
                                                 retryParameters: {
-                                                    timeout: 5000,               // 超时5秒（原20秒）
-                                                    maxAttempts: 2,              // 最多2次（原6次）
+                                                    timeout: 5000,               // 超时5秒
+                                                    maxAttempts: 2,              // 最多2次
                                                     baseDelay: 500,              // 基础延迟0.5秒
-                                                    backoffFactor: 2,            // 退避因子
-                                                    fuzzFactor: 0.5              // 模糊因子
+                                                    backoffFactor: 2,
+                                                    fuzzFactor: 0.5
                                                 },
 
                                                 // ABR自适应码率
@@ -699,20 +711,21 @@
 
                                             abr: {
                                                 enabled: true,                   // 启用ABR
-                                                defaultBandwidthEstimate: 1000000, // 初始带宽估计1Mbps
+                                                defaultBandwidthEstimate: 2000000, // 初始带宽估计2Mbps（提高）
                                                 switchInterval: 8,               // 切换间隔8秒
-                                                bandwidthUpgradeTarget: 0.85,    // 带宽升级目标85%
-                                                bandwidthDowngradeTarget: 0.95,  // 带宽降级目标95%
+                                                bandwidthUpgradeTarget: 0.85,
+                                                bandwidthDowngradeTarget: 0.95,
                                             },
 
                                             manifest: {
                                                 retryParameters: {
-                                                    timeout: 5000,               // 超时5秒（原20秒）
-                                                    maxAttempts: 2,              // 最多2次（原5次）
+                                                    timeout: 5000,
+                                                    maxAttempts: 2,
                                                     baseDelay: 500,
                                                     backoffFactor: 2,
                                                     fuzzFactor: 0.5
-                                                }
+                                                },
+                                                defaultPresentationDelay: 10,    // 默认延迟10秒
                                             }
                                         });
 
